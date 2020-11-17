@@ -1,0 +1,56 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "header", "node", "import", "functional"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:import/typescript"
+  ],
+  "ignorePatterns": ["node_modules", "lib"],
+  "rules": {
+    "@typescript-eslint/explicit-function-return-type": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "header/header": [
+      "error",
+      "block",
+      ["", " * Copyright 2019 - MATTR Limited", " * All rights reserved", " * Confidential and proprietary", " "],
+      { "lineEndings": "unix" }
+    ],
+    "node/no-extraneous-import": "error",
+    "no-param-reassign": "error",
+    "prefer-object-spread": "warn",
+    "no-else-return": "error",
+    "import/order": [
+      "error",
+      {
+        "groups": [["builtin", "external"], "internal", "parent", "sibling"],
+        "pathGroups": [
+          {
+            "pattern": "@mattrglobal/**",
+            "group": "external",
+            "position": "after"
+          }
+        ],
+        // see https://github.com/benmosher/eslint-plugin-import/issues/1565
+        "pathGroupsExcludedImportTypes": ["builtin"],
+        "alphabetize": {
+          "order": "asc"
+        },
+        "newlines-between": "always"
+      }
+    ],
+    "functional/no-method-signature": "error",
+    "functional/immutable-data": "error"
+  },
+  "overrides": [
+    {
+      "files": ["./__tests__/**"],
+      // Tests usually modify a lot of test objects
+      "rules": {
+        "functional/immutable-data": "off"
+      }
+    }
+  ]
+}

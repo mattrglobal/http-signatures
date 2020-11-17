@@ -1,0 +1,6 @@
+lib
+jest_results
+
+# Leave this up to conventional commits
+# If formatted it messes with needle used to inject contents after header and ends up duplicating it instead
+changelog.md
