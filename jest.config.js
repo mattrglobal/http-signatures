@@ -8,8 +8,8 @@
 const pack = require("./package");
 module.exports = {
   collectCoverage: true,
-  coverageDirectory: "./jest_results/coverage/",
-  coverageReporters: [["lcov", { projectRoot: "../../" }], "text"],
+  coverageDirectory: "jest_results/coverage/",
+  coverageReporters: ["html", "lcov"],
   displayName: pack.name,
   name: pack.name,
   preset: "ts-jest",
