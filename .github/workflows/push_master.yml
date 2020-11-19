@@ -28,11 +28,11 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Publish unstable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPMJS_TOKEN }}
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc 2> /dev/null
           git config user.name "Mattr CI"
           git config user.email "npmjs_ci_mattr_public@mattr.global"
           yarn publish:unstable
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPMJS_TOKEN }}
