@@ -21,7 +21,9 @@
     "lint:fix": "eslint . --ext .ts --color --format=table --fix && yarn format",
     "format": "prettier --write '**/*.{js,ts,md,json,yml}'",
     "docs": "typedoc --plugin typedoc-plugin-markdown --theme docusaurus",
-    "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md"
+    "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",
+    "publish:stable": "./scripts/publish_stable.sh",
+    "publish:unstable": "./scripts/publish_unstable.sh"
   },
   "devDependencies": {
     "@commitlint/cli": "8.3.5",

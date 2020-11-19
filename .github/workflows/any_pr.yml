@@ -16,7 +16,11 @@ jobs:
       - run: yarn lint
       - run: yarn build
       - run: yarn test --coverage
-      - uses: romeovs/lcov-reporter-action@v0.2.17
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v1.4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          lcov-file: ./coverage/lcov.info
+          args: >
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # use github provided token
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

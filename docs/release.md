@@ -8,7 +8,7 @@ next time). Commit, and open a pull request.
 git checkout -b [initals]/release-[version]
 
 # Bump the version and generate the changelog addtions
-yarn version --[major|minor|patch]
+yarn version --no-git-tag-version --[major|minor|patch]
 
 # Manually edit the changelog if needed
 vim CHANGELOG.md
@@ -25,3 +25,5 @@ open https://github.com/mattrglobal/http-signatures/pull/new/[initials]/release-
 ```
 
 Important: This pull request must be updated if any other pr's are pushed to master before merging.
+
+After merging this PR run the github release workflow
