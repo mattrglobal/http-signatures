@@ -2,7 +2,7 @@
   "name": "@mattrglobal/http-signatures",
   "version": "0.1.0",
   "description": "Http request signing and verifying",
-  "private": true,
+  "private": false,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mattrglobal/http-signatures.git"
