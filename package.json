@@ -1,0 +1,68 @@
+{
+  "name": "@mattrglobal/http-signatures",
+  "version": "0.1.0",
+  "description": "Http request signing and verifying",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mattrglobal/http-signatures.git"
+  },
+  "author": "MATTR",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/mattrglobal/http-signatures/issues"
+  },
+  "homepage": "https://github.com/mattrglobal/http-signatures#readme",
+  "scripts": {
+    "build": "rm -rf lib/ && tsc --pretty",
+    "test": "jest --passWithNoTests",
+    "pre-pr": "yarn format && yarn lint:fix && yarn build && yarn test",
+    "lint": "eslint . --ext .ts --color --format=table && prettier --check '**/*.{js,ts,md,json,yml}'",
+    "lint:fix": "eslint . --ext .ts --color --format=table --fix && yarn format",
+    "format": "prettier --write '**/*.{js,ts,md,json,yml}'",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --theme docusaurus",
+    "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",
+    "publish:stable": "./scripts/publish_stable.sh",
+    "publish:unstable": "./scripts/publish_unstable.sh"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "8.3.5",
+    "@commitlint/config-conventional": "8.3.4",
+    "@typescript-eslint/eslint-plugin": "2.28.0",
+    "@typescript-eslint/parser": "2.28.0",
+    "conventional-changelog": "3.1.18",
+    "conventional-changelog-cli": "2.0.31",
+    "cz-conventional-changelog": "3.0.2",
+    "eslint": "6.8.0",
+    "eslint-plugin-functional": "3.0.1",
+    "eslint-plugin-header": "3.0.0",
+    "eslint-plugin-import": "2.20.2",
+    "eslint-plugin-node": "11.0.0",
+    "husky": "4.2.5",
+    "jest": "26.5.0",
+    "prettier": "2.0.4",
+    "pretty-quick": "2.0.1",
+    "ts-jest": "26.4.4",
+    "ts-node": "8.4.1",
+    "typedoc": "0.17.0",
+    "typedoc-plugin-markdown": "2.2.11",
+    "typescript": "3.9.3"
+  },
+  "husky": {
+    "hooks": {
+      "commit-msg": "[[ -n $HUSKY_BYPASS ]] || commitlint -E HUSKY_GIT_PARAMS",
+      "pre-commit": "[[ -n $HUSKY_BYPASS ]] || pretty-quick --staged"
+    }
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  },
+  "dependencies": {}
+}
