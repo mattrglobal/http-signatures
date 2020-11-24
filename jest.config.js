@@ -10,6 +10,7 @@ module.exports = {
   collectCoverage: true,
   coverageDirectory: "jest_results/coverage/",
   coverageReporters: ["html", "lcov"],
+  coveragePathIgnorePatterns: ["/node_modules/", "/__tests__/"],
   displayName: pack.name,
   name: pack.name,
   preset: "ts-jest",
