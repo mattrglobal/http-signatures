@@ -8,7 +8,7 @@ import { CreateSignatureHeaderOptions } from "../../src/sign";
 
 export const createSignatureHeaderOptions: CreateSignatureHeaderOptions = {
   signer: {
-    keyId: "hs2019",
+    keyId: "key-1",
     sign: (): Promise<Uint8Array> => Promise.resolve(Uint8Array.from([])),
   },
   url: "http://www.host.com/test?query=1",
