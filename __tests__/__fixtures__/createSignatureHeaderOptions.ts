@@ -13,6 +13,11 @@ export const createSignatureHeaderOptions: CreateSignatureHeaderOptions = {
   },
   url: "http://www.host.com/test?query=1",
   method: "GET",
-  headers: { ["Content-Type"]: "application/json", ["x-custom-header"]: "x-custom-header-value" },
+  httpHeaders: {
+    ["Content-Type"]: "application/json",
+    ["x-custom-header"]: "x-custom-header-value",
+    arrValue: ["item1", "item2", "item3"],
+    undefinedValue: undefined,
+  },
   body: { hello: "hello" },
 };

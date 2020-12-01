@@ -5,30 +5,13 @@
  */
 
 import { encodeURLSafe as base64URLEncode } from "@stablelib/base64";
-import { pipe } from "ramda";
-import urlParser from "url";
 
-import { joinWithSpace, lowerCaseObjectKeys, generateDigest, stringToBytes } from "../common";
-
-const generateObjectEntriesString = (entries: [string, string | number][]): string =>
-  entries
-    .map(([key, value]) => {
-      const trimmedValue = typeof value === "string" ? value.trim() : value;
-      return `${key}: ${trimmedValue}`;
-    })
-    .join("\n");
-
-/**
- * Generate a string representation of an object and return the bytes of that string for signing
- * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.3
- */
-const generateBytesToSign = pipe(lowerCaseObjectKeys, Object.entries, generateObjectEntriesString, stringToBytes);
-
-/**
- * Generate a string containing all the keys of an object separated by a space
- * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.1.6
- */
-const generateHeadersListString = pipe(lowerCaseObjectKeys, Object.keys, joinWithSpace);
+import {
+  generateDigest,
+  generateHeadersListString,
+  generateSignatureBytes,
+  generateVerifyDataEntries,
+} from "../common";
 
 export type CreateSignatureHeaderOptions = {
   readonly signer: {
@@ -53,7 +36,7 @@ export type CreateSignatureHeaderOptions = {
    * Headers and their values to include in the signing
    * The keys of these headers will be appended to the signature string for verification
    */
-  readonly headers: { readonly [key: string]: string };
+  readonly httpHeaders: { readonly [key: string]: string | string[] | undefined };
   /**
    * The body of the request
    */
@@ -72,34 +55,33 @@ export const createSignatureHeader = async (
   const {
     signer: { keyId, sign },
     method,
-    headers,
+    httpHeaders,
     body,
     url,
   } = options;
-  const { host, path } = urlParser.parse(url);
 
-  if (headers["Content-Type"] === undefined && body !== undefined) {
-    return Promise.reject(Error("content-type header must be defined if a body is defined"));
-  }
-
+  // Append the digest if necessary
+  const digest = body ? generateDigest(body) : undefined;
   const created = Math.round(Date.now() / 1000);
-  const dataToSign = {
-    ["(request-target)"]: joinWithSpace([method.toLowerCase(), path]),
-    ["(created)"]: created,
-    host,
-    ...(body ? { digest: generateDigest(body) } : {}),
-    ...headers,
-  };
+  const entriesToSign = generateVerifyDataEntries({
+    httpHeaders: {
+      ...httpHeaders,
+      ...(digest ? { Digest: digest } : {}),
+    },
+    url,
+    method,
+    created,
+  });
+  const bytesToSign = generateSignatureBytes(entriesToSign);
 
-  const bytesToSign = generateBytesToSign(dataToSign);
   const signature = await sign(bytesToSign);
-  const headersListString = generateHeadersListString(dataToSign);
-  const signatureHeaderValue = `keyId="${keyId}",algorithm="${algorithm}",created=${created},headers="${headersListString}",signature="${base64URLEncode(
-    signature
-  )}"`;
+
+  const signatureBase64 = base64URLEncode(signature);
+  const headersListString = generateHeadersListString(entriesToSign);
+  const signatureHeaderValue = `keyId="${keyId}",algorithm="${algorithm}",created=${created},headers="${headersListString}",signature="${signatureBase64}"`;
 
   return {
     signature: signatureHeaderValue,
-    ...(dataToSign.digest ? { digest: dataToSign.digest } : {}),
+    digest,
   };
 };
