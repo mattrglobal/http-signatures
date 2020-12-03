@@ -3,6 +3,7 @@
  * All rights reserved
  * Confidential and proprietary
  */
+import * as base64 from "@stablelib/base64";
 import { generateKeyPairFromSeed, KeyPair, sign, verify } from "@stablelib/ed25519";
 
 import { verifySignatureHeader, createSignatureHeader, CreateSignatureHeaderOptions } from "../../src";
@@ -27,7 +28,10 @@ describe("createSignatureHeader", () => {
       ...createSignatureHeaderOptions,
       signer: { keyId: "key1", sign: signEd25519 },
     };
-    createSignatureResult = await createSignatureHeader(createOptions);
+    await createSignatureHeader(createOptions).then((res) => {
+      expect(res.isOk()).toBe(true);
+      res.isOk() ? (createSignatureResult = res.value) : undefined;
+    });
   });
 
   it("Should verify a signature", async () => {
@@ -42,22 +46,27 @@ describe("createSignatureHeader", () => {
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
     });
 
-    expect(result).toBe(true);
+    expect(result.isOk()).toBe(true);
   });
 
-  it("Should resolve to false when verifying a tampered signature", async () => {
-    await expect(
-      verifySignatureHeader({
-        httpHeaders: {
-          ...createSignatureHeaderOptions.httpHeaders,
-          Digest: `${createSignatureResult.digest}`,
-          Signature: createSignatureResult.signature,
-        },
-        method: "PUT",
-        url: createSignatureHeaderOptions.url,
-        verifier: { verify: verifyEd25519(keyPair.publicKey) },
-      })
-    ).resolves.toBe(false);
+  it("Should return verified false when verifying a tampered signature", async (done) => {
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: `${createSignatureResult.digest}`,
+        Signature: createSignatureResult.signature,
+      },
+      method: "PUT",
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyEd25519(keyPair.publicKey) },
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+
+    expect(result.value).toEqual(false);
+    done();
   });
 
   it("Should ignore headers not included in a signature string headers", async () => {
@@ -73,32 +82,42 @@ describe("createSignatureHeader", () => {
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
     });
 
-    expect(result).toBe(true);
+    expect(result.isOk()).toBe(true);
   });
 
-  it("Should reject if headers to verify do not match headers defined in the signature string", async () => {
-    await expect(
-      verifySignatureHeader({
-        httpHeaders: {
-          randomHeader: "value",
-          Signature: createSignatureResult.signature,
-        },
-        method: createSignatureHeaderOptions.method,
-        url: createSignatureHeaderOptions.url,
-        verifier: { verify: verifyEd25519(keyPair.publicKey) },
-      })
-    ).rejects.toMatchObject(Error("signature headers string mismatch"));
+  it("Should return verified false if headers to verify do not match headers defined in the signature string", async (done) => {
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        randomHeader: "value",
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyEd25519(keyPair.publicKey) },
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+
+    expect(result.value).toEqual(false);
+    done();
   });
 
-  it("Should reject if signature header is not a string", async () => {
-    await expect(
-      verifySignatureHeader({
-        httpHeaders: {},
-        method: createSignatureHeaderOptions.method,
-        url: createSignatureHeaderOptions.url,
-        verifier: { verify: verifyEd25519(keyPair.publicKey) },
-      })
-    ).rejects.toMatchObject(Error("bad signature header - signature header must be a string"));
+  it("Should return verified false if signature header is not a string", async (done) => {
+    const result = await verifySignatureHeader({
+      httpHeaders: {},
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyEd25519(keyPair.publicKey) },
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+
+    expect(result.value).toEqual(false);
+    done();
   });
 
   test.each([
@@ -106,17 +125,86 @@ describe("createSignatureHeader", () => {
     ["signature", `created=1,headers="",keyId=""`],
     ["created", `signature="",headers="",keyId=""`],
     ["headers", `signature="",created=1,keyId=""`],
-  ])("Should reject when signature header value is missing %s field", async (missing, headerValue) => {
-    await expect(
-      verifySignatureHeader({
-        httpHeaders: {
-          ...createSignatureHeaderOptions.httpHeaders,
-          Signature: headerValue,
-        },
-        method: createSignatureHeaderOptions.method,
-        url: createSignatureHeaderOptions.url,
-        verifier: { verify: verifyEd25519(keyPair.publicKey) },
-      })
-    ).rejects.toMatchObject(Error("signature string is missing a required field"));
+  ])("Should return verified false when signature header value is missing %s field", async (missing, headerValue) => {
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Signature: headerValue,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyEd25519(keyPair.publicKey) },
+    });
+
+    expect(result).toMatchObject({ value: false });
+  });
+
+  it("Should return verified false if an err is returned from decoding", async (done) => {
+    const mockDecode = jest.spyOn(base64, "decodeURLSafe");
+    const errorString = "error decoding";
+    mockDecode.mockImplementationOnce(() => {
+      throw Error(errorString);
+    });
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: `${createSignatureResult.digest}`,
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyEd25519(keyPair.publicKey) },
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+
+    expect(result.value).toEqual(false);
+    done();
+  });
+
+  it("Should return verified false if included http headers contain duplicate case insensitive headers", async (done) => {
+    // NOTE: We don't return verified result error messages so cannot confirm exact place of failure just that it returned false
+    // We could achieve this by creating and running expects on spys surrounding the expected failure point
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: `${createSignatureResult.digest}`,
+        digest: `${createSignatureResult.digest}`,
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyEd25519(keyPair.publicKey) },
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+    expect(result.value).toEqual(false);
+    done();
+  });
+
+  it("Should return a handled error if an error is thrown in the verify function", async (done) => {
+    const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: `${createSignatureResult.digest}`,
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: badVerify },
+    });
+
+    if (result.isOk()) {
+      return done.fail("result is not an error");
+    }
+
+    expect(result.error).toEqual({ type: "VerifyFailed", message: "Failed to verify signature header" });
+    done();
   });
 });

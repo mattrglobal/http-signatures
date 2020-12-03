@@ -26,13 +26,17 @@ const createSignedRequest = async (config: AxiosRequestConfig): Promise<AxiosReq
   const signer = { sign: signWithEd25519, keyId: "key-1" };
   const { method = "POST", headers, url = "http://www.apiurl.com/path?query=1", data } = config;
 
-  const { digest, signature } = await createSignatureHeader({
+  const result = await createSignatureHeader({
     signer,
     headers: headers,
     method,
     url,
     body: data,
   });
+  if (result.isErr()) {
+    return onError(result.error);
+  }
+  const { digest, signature } = result.value;
   const newHeaders = { ...headers, ...(digest ? { Digest: digest } : {}), Signature: signature };
 
   return { ...config, headers: newHeaders };
@@ -49,9 +53,13 @@ const url = req.protocol + "://" + headers.host + req.baseUrl;
 const verifier = { verify: verifyFn };
 const options = { verifier, url, method, httpHeaders: headers };
 
-try {
-  const verified = await verifySignatureHeader(options);
-} catch (error) {
-  console.log("There was an error verifying the signature");
+const result = await verifySignatureHeader(options);
+
+if (result.isErr()) {
+  return onError(result.error);
+}
+
+if (result.isOk()) {
+  console.log(`Is verified: ${result.value}`);
 }
 ```

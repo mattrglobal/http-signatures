@@ -4,24 +4,27 @@
  * Confidential and proprietary
  */
 
+import { decodeURLSafe } from "@stablelib/base64";
 import { Buffer } from "buffer";
-import { join, map, pipe, toLower } from "ramda";
+import { err, ok, Result } from "neverthrow";
+import { join, pipe, split } from "ramda";
 
 import { VerifyDataEntry } from "./types";
 
+export const splitWithSpace = split(" ");
 export const joinWithSpace = join(" ");
 export const stringToBytes = (str: string): Uint8Array => Uint8Array.from(Buffer.from(str, "utf-8"));
 
-/**
- * Generate a string containing all the keys of an object separated by a space
- * Order that was used in signing must be preserved in this list of headers
- * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.1.6
- */
-const mapEntryKeys = map((entry: VerifyDataEntry) => entry[0]);
-export const generateHeadersListString = pipe(mapEntryKeys, joinWithSpace, toLower);
-
+export const decodeBase64Url = (bytes: string): Result<Uint8Array, string> => {
+  try {
+    return ok(decodeURLSafe(bytes));
+  } catch (error) {
+    return err("Failed to decode base64 bytes");
+  }
+};
 /**
  * Generate a string representation of an object and return the bytes of that string for signing
+ * We need to use entries so we can guarantee the order of the keys when iterated on
  * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.3
  */
 const generateSignatureStringFromEntries = (entries: VerifyDataEntry[]): string =>
@@ -34,4 +37,6 @@ const generateSignatureStringFromEntries = (entries: VerifyDataEntry[]): string 
 export const generateSignatureBytes = pipe(generateSignatureStringFromEntries, stringToBytes);
 
 export * from "./generateDigest";
-export * from "./generateVerifyDataEntries";
+export * from "./generateVerifyData";
+export * from "./generateSortedVerifyDataEntries";
+export * from "./types";

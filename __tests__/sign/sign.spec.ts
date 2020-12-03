@@ -9,14 +9,9 @@ import { createSignatureHeader, CreateSignatureHeaderOptions } from "../../src/s
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
 describe("createSignatureHeader", () => {
-  const mockSign = jest.fn((_data) => Promise.resolve(Uint8Array.from([1])));
   Date.now = jest.fn(() => 1577836800); //01.01.2020
 
-  beforeEach(() => {
-    mockSign.mockClear();
-  });
-
-  it("Should create a signature and a digest", async () => {
+  it("Should create a signature and a digest", async (done) => {
     const seed = generateKeyPairFromSeed(new Uint8Array(32));
     const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
     const options: CreateSignatureHeaderOptions = {
@@ -24,14 +19,20 @@ describe("createSignatureHeader", () => {
       signer: { keyId: "key1", sign: signEd25519 },
     };
 
-    await expect(createSignatureHeader(options)).resolves.toMatchObject({
-      digest: "SHA-256=wnRdPgQ+BTyxU5jDYMTAg3GXadmb7etzdN5ymvsJ8WQ=",
+    const result = await createSignatureHeader(options);
+
+    if (result.isErr()) {
+      return done.fail(result.error);
+    }
+    expect(result.value).toMatchObject({
+      digest: "SHA-256=wnRdPgQ-BTyxU5jDYMTAg3GXadmb7etzdN5ymvsJ8WQ=",
       signature:
-        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) content-type digest arrvalue host undefinedvalue x-custom-header",signature="7So7hywQ5Np4MIcpW5iQdEV5kQstDLkn9pkltgcw3aMvCyalb4Z1IGov1JoD_iRJujiX9rPmStjIYn03zzt0BA=="',
+        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) arrvalue content-type digest host undefinedvalue x-custom-header",signature="1rRYstzVwCxmTbuF-lzKRxR1V8eImf3lRdjFqv7olV9wxgkpQ4Z8w-B7YHDSl5Qk_NgrjLgZbhriQiiDetXzAA=="',
     });
+    done();
   });
 
-  it("Should create the same signature with different order http headers", async () => {
+  it("Should create the same signature with different order http headers", async (done) => {
     const seed = generateKeyPairFromSeed(new Uint8Array(32));
     const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
     const options1: CreateSignatureHeaderOptions = {
@@ -50,47 +51,101 @@ describe("createSignatureHeader", () => {
     const result1 = await createSignatureHeader(options1);
     const result2 = await createSignatureHeader(options2);
 
-    expect(result1.signature).toStrictEqual(result2.signature);
+    if (result1.isErr() || result2.isErr()) {
+      return done.fail("result is an error");
+    }
+
+    expect(result1.value).toStrictEqual(result2.value);
+    done();
   });
 
-  it("Should handle a string body", async () => {
+  it("Should handle a string body", async (done) => {
+    const sign = (): Promise<Uint8Array> => Promise.resolve(Uint8Array.from([1]));
     const options = {
       ...createSignatureHeaderOptions,
       body: "string body",
-      signer: { keyId: "key1", sign: mockSign },
+      signer: { keyId: "key1", sign: sign },
     };
 
-    await expect(createSignatureHeader(options)).resolves.toMatchObject({
-      digest: "SHA-256=qoxd+emcQclK6Mp84PxOeUumOdjbx+mSW/pxhEXlcno=",
+    const result = await createSignatureHeader(options);
+    if (result.isErr()) {
+      return done.fail(result.error);
+    }
+
+    await expect(result.value).toMatchObject({
+      digest: "SHA-256=qoxd-emcQclK6Mp84PxOeUumOdjbx-mSW_pxhEXlcno=",
       signature:
-        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) content-type digest arrvalue host undefinedvalue x-custom-header",signature="AQ=="',
+        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) arrvalue content-type digest host undefinedvalue x-custom-header",signature="AQ=="',
     });
-    expect(mockSign).toHaveBeenCalledTimes(1);
+    done();
   });
 
-  it("Should reject if a body is defined and content type is not", async () => {
-    const options = {
+  it("Should return an err if headers is empty", async (done) => {
+    const result = await createSignatureHeader({
       ...createSignatureHeaderOptions,
       httpHeaders: {},
-      signer: { keyId: "key1", sign: mockSign },
-    };
+    });
 
-    await expect(createSignatureHeader(options)).rejects.toMatchObject(
-      Error("content-type header must be defined if a body is defined")
-    );
-    expect(mockSign).toHaveBeenCalledTimes(0);
+    if (result.isOk()) {
+      return done.fail("result is not an error");
+    }
+    expect(result.error).toEqual({ type: "MalformedInput", message: "Http headers must not be empty" });
+    done();
   });
 
-  it("Should reject if headers contains a duplicate case insensitive entry", async () => {
+  it("Should return an error if headers contains a duplicate case insensitive entry", async (done) => {
     const options = {
       ...createSignatureHeaderOptions,
       httpHeaders: { header1: "value", HEADER1: "value" },
-      signer: { keyId: "key1", sign: mockSign },
     };
 
-    await expect(createSignatureHeader(options)).rejects.toMatchObject(
-      Error("duplicate case insensitive header keys detected. Specify an array of values instead.")
-    );
-    expect(mockSign).toHaveBeenCalledTimes(0);
+    const result = await createSignatureHeader(options);
+
+    if (result.isOk()) {
+      return done.fail("result is not an error");
+    }
+
+    expect(result.error).toEqual({
+      type: "MalformedInput",
+      message: "Duplicate case insensitive header keys detected, specify an array of values instead",
+    });
+    done();
+  });
+
+  it("Should return an error if sign throws", async (done) => {
+    const badSign = (): Promise<Uint8Array> => Promise.reject(Error("unexpected error"));
+    const options = {
+      ...createSignatureHeaderOptions,
+      signer: { keyId: "key1", sign: badSign },
+    };
+
+    const result = await createSignatureHeader(options);
+
+    if (result.isOk()) {
+      return done.fail("result is not an error");
+    }
+
+    await expect(result.error).toEqual({ type: "SignFailed", message: "Failed to sign signature header" });
+    done();
+  });
+
+  it("Should return an error if an exception is thrown", async (done) => {
+    const badSign = (): Promise<Uint8Array> => {
+      throw Error("Error");
+    };
+
+    const options = {
+      ...createSignatureHeaderOptions,
+      signer: { keyId: "key1", sign: badSign },
+    };
+
+    const result = await createSignatureHeader(options);
+
+    if (result.isOk()) {
+      return done.fail("result is not an error");
+    }
+
+    expect(result.error).toEqual({ type: "Error", message: "Failed to create signature header" });
+    done();
   });
 });
