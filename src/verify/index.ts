@@ -4,4 +4,4 @@
  * Confidential and proprietary
  */
 
-export * from "./createSignatureHeader";
+export * from "./verifySignatureHeader";
