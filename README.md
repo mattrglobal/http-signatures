@@ -48,10 +48,10 @@ const createSignedRequest = async (config: AxiosRequestConfig): Promise<AxiosReq
 With express
 
 ```typescript
-const { headers, protocol, headers, baseUrl, method } = request;
+const { headers, protocol, baseUrl, method, body } = request;
 const url = req.protocol + "://" + headers.host + req.baseUrl;
 const verifier = { verify: verifyFn };
-const options = { verifier, url, method, httpHeaders: headers };
+const options = { verifier, url, method, httpHeaders: headers, body };
 
 const result = await verifySignatureHeader(options);
 

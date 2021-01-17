@@ -4,14 +4,15 @@
  * Confidential and proprietary
  */
 
-import { ResultAsync, okAsync, errAsync } from "neverthrow";
-import { includes, pickBy, toLower } from "ramda";
+import { ResultAsync, okAsync, errAsync, err } from "neverthrow";
+import { all, both, includes, isEmpty, isNil, pickBy, toLower } from "ramda";
 
-import { decodeBase64Url, generateSignatureBytes, splitWithSpace } from "../common";
+import { decodeBase64Url, generateDigest, generateSignatureBytes, splitWithSpace } from "../common";
 import { HttpHeaders, generateVerifyData, generateSortedVerifyDataEntries } from "../common";
 import { VerifySignatureHeaderError } from "../errors";
 
 import { getSignatureParams } from "./getSignatureParams";
+import { verifyDigest } from "./verifyDigest";
 
 export type VerifySignatureHeaderOptions = {
   readonly verifier: {
@@ -33,6 +34,10 @@ export type VerifySignatureHeaderOptions = {
    * httpHeaders is filtered during verification to include only the ones form the signature.
    */
   readonly httpHeaders: HttpHeaders;
+  /**
+   * The body of the request
+   */
+  readonly body?: object | string;
 };
 
 /**
@@ -49,6 +54,7 @@ export const verifySignatureHeader = (
     method,
     httpHeaders,
     url,
+    body,
   } = options;
 
   try {
@@ -77,6 +83,12 @@ export const verifySignatureHeader = (
       return okAsync(false);
     }
     const { value: verifyData } = verifyDataRes;
+
+    const digest = verifyData["digest"];
+    // Verify the digest if it's present
+    if (digest !== undefined && !verifyDigest(digest, body)) {
+      return okAsync(false);
+    }
 
     const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, signatureHeadersString);
     if (sortedEntriesRes.isErr()) {
