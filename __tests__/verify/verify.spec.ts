@@ -9,7 +9,7 @@ import { generateKeyPairFromSeed, KeyPair, sign, verify } from "@stablelib/ed255
 import { verifySignatureHeader, createSignatureHeader, CreateSignatureHeaderOptions } from "../../src";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
-describe("createSignatureHeader", () => {
+describe("verifySignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
 
   const verifyEd25519 = (publicKey: Uint8Array) => async (
@@ -34,7 +34,7 @@ describe("createSignatureHeader", () => {
     });
   });
 
-  it("Should verify a signature", async () => {
+  it("Should verify a valid signature", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
@@ -59,6 +59,7 @@ describe("createSignatureHeader", () => {
       method: "PUT",
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
+      body: createSignatureHeaderOptions.body,
     });
 
     if (result.isErr()) {
@@ -80,6 +81,7 @@ describe("createSignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
+      body: createSignatureHeaderOptions.body,
     });
 
     expect(result.isOk()).toBe(true);
@@ -94,6 +96,7 @@ describe("createSignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
+      body: createSignatureHeaderOptions.body,
     });
 
     if (result.isErr()) {
@@ -134,6 +137,7 @@ describe("createSignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
+      body: createSignatureHeaderOptions.body,
     });
 
     expect(result).toMatchObject({ value: false });
@@ -155,6 +159,7 @@ describe("createSignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
+      body: createSignatureHeaderOptions.body,
     });
 
     if (result.isErr()) {
@@ -178,6 +183,69 @@ describe("createSignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
+      body: createSignatureHeaderOptions.body,
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+    expect(result.value).toEqual(false);
+    done();
+  });
+
+  it("Should return a verified false if the body has been tampered", async (done) => {
+    const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: `${createSignatureResult.digest}`,
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: badVerify },
+      body: { tampered: "body" },
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+    expect(result.value).toEqual(false);
+    done();
+  });
+
+  it("Should return a verified false if the body is undefined but the digest header is not", async (done) => {
+    const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: `${createSignatureResult.digest}`,
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: badVerify },
+    });
+
+    if (result.isErr()) {
+      return done.fail("result is an error");
+    }
+    expect(result.value).toEqual(false);
+    done();
+  });
+
+  it("Should return a verified false if the digest header is a string array", async (done) => {
+    const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: ["string", "array"],
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: badVerify },
+      body: createSignatureHeaderOptions.body,
     });
 
     if (result.isErr()) {
@@ -198,6 +266,7 @@ describe("createSignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: badVerify },
+      body: createSignatureHeaderOptions.body,
     });
 
     if (result.isOk()) {
