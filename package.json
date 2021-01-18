@@ -4,6 +4,14 @@
   "description": "Http request signing and verifying",
   "private": false,
   "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "directories": {
+    "lib": "lib",
+    "test": "__tests__"
+  },
+  "files": [
+    "lib"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mattrglobal/http-signatures.git"
