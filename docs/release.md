@@ -26,4 +26,4 @@ open https://github.com/mattrglobal/http-signatures/pull/new/[initials]/release-
 
 Important: This pull request must be updated if any other pr's are pushed to master before merging.
 
-After merging this PR the release workgflow should run automatically and publish to npm.
+After merging this PR the release workflow should run automatically and publish to npm.
