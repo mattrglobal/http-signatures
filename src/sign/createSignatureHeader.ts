@@ -5,8 +5,12 @@
  */
 
 import { encodeURLSafe as base64URLEncode } from "@stablelib/base64";
+import Debug from "debug";
 import { errAsync, ResultAsync } from "neverthrow";
 import { isEmpty, map, pipe } from "ramda";
+
+const logDebug = Debug("http-signatures:sign");
+const logTrace = Debug("http-signatures:sign:trace");
 
 import {
   generateDigest,
@@ -65,6 +69,8 @@ export type CreateSignatureHeaderOptions = {
 export const createSignatureHeader = (
   options: CreateSignatureHeaderOptions
 ): ResultAsync<{ digest?: string; signature: string }, CreateSignatureHeaderError> => {
+  logDebug("createSignatureHeader start");
+
   try {
     const algorithm = "hs2019";
     const {
@@ -102,12 +108,16 @@ export const createSignatureHeader = (
     }
 
     const { value: sortedEntries } = sortedEntriesRes;
+    logTrace("sortedEntries:");
+    logTrace(sortedEntriesRes);
     const bytesToSign = generateSignatureBytes(sortedEntries);
     const headersListString = generateHeadersListString(sortedEntries);
 
-    return ResultAsync.fromPromise<Uint8Array, CreateSignatureHeaderError>(sign(bytesToSign), () => ({
+    logDebug("createSignatureHeader end, return promise result from sign");
+    return ResultAsync.fromPromise<Uint8Array, CreateSignatureHeaderError>(sign(bytesToSign), (error) => ({
       type: "SignFailed",
       message: "Failed to sign signature header",
+      rawError: error,
     })).map((result) => {
       const signatureBase64 = base64URLEncode(result);
       const signatureHeaderValue = `keyId="${keyId}",algorithm="${algorithm}",created=${created},headers="${headersListString}",signature="${signatureBase64}"`;
@@ -117,6 +127,6 @@ export const createSignatureHeader = (
       };
     });
   } catch (error) {
-    return errAsync({ type: "Error", message: "Failed to create signature header" });
+    return errAsync({ type: "Error", message: "Failed to create signature header", rawError: error });
   }
 };

@@ -125,7 +125,11 @@ describe("createSignatureHeader", () => {
       return done.fail("result is not an error");
     }
 
-    await expect(result.error).toEqual({ type: "SignFailed", message: "Failed to sign signature header" });
+    await expect(result.error).toEqual({
+      type: "SignFailed",
+      message: "Failed to sign signature header",
+      rawError: {},
+    });
     done();
   });
 
@@ -145,7 +149,7 @@ describe("createSignatureHeader", () => {
       return done.fail("result is not an error");
     }
 
-    expect(result.error).toEqual({ type: "Error", message: "Failed to create signature header" });
+    expect(result.error).toEqual({ type: "Error", message: "Failed to create signature header", rawError: {} });
     done();
   });
 });

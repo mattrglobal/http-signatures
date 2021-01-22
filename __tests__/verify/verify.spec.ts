@@ -256,12 +256,13 @@ describe("verifySignatureHeader", () => {
   });
 
   it("Should return a handled error if an error is thrown in the verify function", async (done) => {
-    const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
+    const error = Error("unexpected error");
+    const badVerify = (): Promise<boolean> => Promise.reject(error);
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
         Digest: `${createSignatureResult.digest}`,
-        Signature: createSignatureResult.signature,
+        signature: createSignatureResult.signature,
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
@@ -270,10 +271,14 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isOk()) {
-      return done.fail("result is not an error");
+      return done.fail("result is not an error"); // not sure why this failed
     }
 
-    expect(result.error).toEqual({ type: "VerifyFailed", message: "Failed to verify signature header" });
+    expect(result.error).toEqual({
+      type: "VerifyFailed",
+      message: "Failed to verify signature header",
+      rawError: error,
+    });
     done();
   });
 });
