@@ -25,7 +25,7 @@ import { CreateSignatureHeaderError } from "../errors";
  * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.1.6
  */
 const mapEntryKeys = map(([key]: VerifyDataEntry) => key);
-export const generateHeadersListString = pipe(mapEntryKeys, joinWithSpace);
+const generateHeadersListString = pipe(mapEntryKeys, joinWithSpace);
 
 export type CreateSignatureHeaderOptions = {
   readonly signer: {
