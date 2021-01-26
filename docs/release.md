@@ -19,6 +19,12 @@ git commit -a -m "chore(release): publish [version]"
 # Push the branch to remote
 git push -u origin [initials]/release-[version]
 
+# Add a tag
+git tag [version]
+
+# Push the new tag
+git push --tags
+
 # Open a pull request into master
 open https://github.com/mattrglobal/http-signatures/pull/new/[initials]/release-[version]
 
