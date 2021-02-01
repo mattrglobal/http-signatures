@@ -127,6 +127,12 @@ export const createSignatureHeader = (
       };
     });
   } catch (error) {
-    return errAsync({ type: "Error", message: "Failed to create signature header", rawError: error });
+    logDebug("createSignatureHeader error");
+    logDebug(error);
+    return errAsync({
+      type: "SignFailed",
+      message: "Failed to create signature header with unexpected error",
+      rawError: error,
+    });
   }
 };

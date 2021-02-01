@@ -134,6 +134,10 @@ export const verifySignatureHeader = (
   } catch (error) {
     logDebug("verifySignatureHeader error");
     logDebug(error);
-    return errAsync({ type: "Error", message: "Failed to verify signature header", rawError: error });
+    return errAsync({
+      type: "VerifyFailed",
+      message: "Failed to verify signature header with unexpected error",
+      rawError: error,
+    });
   }
 };

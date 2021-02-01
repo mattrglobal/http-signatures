@@ -286,4 +286,33 @@ describe("verifySignatureHeader", () => {
     });
     done();
   });
+
+  it("Should return a handled error if an unexpected error is thrown in the verify function", async (done) => {
+    const error = Error("unexpected error");
+    const badVerify = (): Promise<boolean> => {
+      throw error;
+    };
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Digest: `${createSignatureResult.digest}`,
+        signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: badVerify },
+      body: createSignatureHeaderOptions.body,
+    });
+
+    if (result.isOk()) {
+      return done.fail("result is not an error");
+    }
+
+    expect(result.error).toEqual({
+      type: "VerifyFailed",
+      message: "Failed to verify signature header with unexpected error",
+      rawError: error,
+    });
+    done();
+  });
 });
