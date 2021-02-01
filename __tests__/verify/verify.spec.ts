@@ -276,7 +276,7 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isOk()) {
-      return done.fail("result is not an error"); // not sure why this failed
+      return done.fail("result is not an error");
     }
 
     expect(result.error).toEqual({
