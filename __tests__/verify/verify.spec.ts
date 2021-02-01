@@ -34,6 +34,11 @@ describe("verifySignatureHeader", () => {
     });
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.restoreAllMocks();
+  });
+
   it("Should verify a valid signature", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {

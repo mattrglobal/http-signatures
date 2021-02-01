@@ -11,6 +11,11 @@ import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHea
 describe("createSignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
 
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.restoreAllMocks();
+  });
+
   it("Should create a signature and a digest", async (done) => {
     const seed = generateKeyPairFromSeed(new Uint8Array(32));
     const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
@@ -113,7 +118,8 @@ describe("createSignatureHeader", () => {
   });
 
   it("Should return an error if sign throws", async (done) => {
-    const badSign = (): Promise<Uint8Array> => Promise.reject(Error("unexpected error"));
+    const error = Error("unexpected error");
+    const badSign = (): Promise<Uint8Array> => Promise.reject(error);
     const options = {
       ...createSignatureHeaderOptions,
       signer: { keyId: "key1", sign: badSign },
@@ -128,14 +134,15 @@ describe("createSignatureHeader", () => {
     await expect(result.error).toEqual({
       type: "SignFailed",
       message: "Failed to sign signature header",
-      rawError: {},
+      rawError: error,
     });
     done();
   });
 
   it("Should return an error if an exception is thrown", async (done) => {
+    const error = Error("Error");
     const badSign = (): Promise<Uint8Array> => {
-      throw Error("Error");
+      throw error;
     };
 
     const options = {
@@ -149,7 +156,7 @@ describe("createSignatureHeader", () => {
       return done.fail("result is not an error");
     }
 
-    expect(result.error).toEqual({ type: "Error", message: "Failed to create signature header", rawError: {} });
+    expect(result.error).toEqual({ type: "Error", message: "Failed to create signature header", rawError: error });
     done();
   });
 });
