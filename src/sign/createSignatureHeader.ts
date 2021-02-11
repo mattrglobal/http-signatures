@@ -5,21 +5,17 @@
  */
 
 import { encodeURLSafe as base64URLEncode } from "@stablelib/base64";
-import Debug from "debug";
 import { errAsync, ResultAsync } from "neverthrow";
 import { isEmpty, map, pipe } from "ramda";
-
-const logDebug = Debug("http-signatures:sign");
-const logTrace = Debug("http-signatures:sign:trace");
 
 import {
   generateDigest,
   generateSignatureBytes,
-  joinWithSpace,
-  HttpHeaders,
-  VerifyDataEntry,
-  generateVerifyData,
   generateSortedVerifyDataEntries,
+  generateVerifyData,
+  HttpHeaders,
+  joinWithSpace,
+  VerifyDataEntry,
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
@@ -69,8 +65,6 @@ export type CreateSignatureHeaderOptions = {
 export const createSignatureHeader = (
   options: CreateSignatureHeaderOptions
 ): ResultAsync<{ digest?: string; signature: string }, CreateSignatureHeaderError> => {
-  logDebug("createSignatureHeader start");
-
   try {
     const algorithm = "hs2019";
     const {
@@ -108,12 +102,9 @@ export const createSignatureHeader = (
     }
 
     const { value: sortedEntries } = sortedEntriesRes;
-    logTrace("sortedEntries:");
-    logTrace(sortedEntriesRes);
     const bytesToSign = generateSignatureBytes(sortedEntries);
     const headersListString = generateHeadersListString(sortedEntries);
 
-    logDebug("createSignatureHeader end, return promise result from sign");
     return ResultAsync.fromPromise<Uint8Array, CreateSignatureHeaderError>(sign(bytesToSign), (error) => ({
       type: "SignFailed",
       message: "Failed to sign signature header",
@@ -127,8 +118,6 @@ export const createSignatureHeader = (
       };
     });
   } catch (error) {
-    logDebug("createSignatureHeader error");
-    logDebug(error);
     return errAsync({
       type: "SignFailed",
       message: "Failed to create signature header with unexpected error",

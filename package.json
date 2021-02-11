@@ -38,7 +38,6 @@
     "@commitlint/cli": "8.3.5",
     "@commitlint/config-conventional": "8.3.4",
     "@stablelib/ed25519": "1.0.0",
-    "@types/debug": "4.1.5",
     "@types/jest": "26.0.15",
     "@types/ramda": "0.27.32",
     "@typescript-eslint/eslint-plugin": "2.28.0",
@@ -82,7 +81,6 @@
     "@stablelib/sha256": "1.0.0",
     "buffer": "6.0.3",
     "canonicalize": "1.0.5",
-    "debug": "4.3.1",
     "neverthrow": "3.0.0",
     "ramda": "0.27.1",
     "url": "0.11.0"

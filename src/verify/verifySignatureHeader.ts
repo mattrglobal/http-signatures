@@ -4,7 +4,6 @@
  * Confidential and proprietary
  */
 
-import Debug from "debug";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { includes, pickBy, toLower } from "ramda";
 
@@ -14,15 +13,13 @@ import {
   generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
+  reduceKeysToLowerCase,
   splitWithSpace,
 } from "../common";
 import { VerifySignatureHeaderError } from "../errors";
 
 import { getSignatureParams } from "./getSignatureParams";
 import { verifyDigest } from "./verifyDigest";
-
-const logDebug = Debug("http-signatures:verify");
-const logTrace = Debug("http-signatures:verify:trace");
 
 export type VerifySignatureHeaderOptions = {
   readonly verifier: {
@@ -59,8 +56,6 @@ export type VerifySignatureHeaderOptions = {
 export const verifySignatureHeader = (
   options: VerifySignatureHeaderOptions
 ): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  logDebug("verifySignatureHeader start");
-
   const {
     verifier: { verify },
     method,
@@ -72,14 +67,13 @@ export const verifySignatureHeader = (
   try {
     // need to make sure signature header is in lower case
     // SuperTest set() convert header to lower case
-    const { signature: signatureString } = httpHeaders;
+    const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
+    const { signature: signatureString } = lowerCaseHttpHeaders as HttpHeaders;
     if (typeof signatureString !== "string") {
-      logDebug('typeof signatureString !== "string"');
       return okAsync(false);
     }
     const getSignatureParamsResult = getSignatureParams(signatureString);
     if (getSignatureParamsResult.isErr()) {
-      logDebug("getSignatureParamsResult.isErr()");
       return okAsync(false);
     }
     const { created, headers: signatureHeadersString = "", keyId, signature } = getSignatureParamsResult.value;
@@ -96,7 +90,6 @@ export const verifySignatureHeader = (
       httpHeaders: httpHeadersToVerify,
     });
     if (verifyDataRes.isErr()) {
-      logDebug("verifyDataRes.isErr()");
       return okAsync(false);
     }
     const { value: verifyData } = verifyDataRes;
@@ -104,36 +97,28 @@ export const verifySignatureHeader = (
     const digest = verifyData["digest"];
     // Verify the digest if it's present
     if (digest !== undefined && !verifyDigest(digest, body)) {
-      logDebug("digest !== undefined && !verifyDigest(digest, body)");
       return okAsync(false);
     }
 
     const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, signatureHeadersString);
     if (sortedEntriesRes.isErr()) {
-      logDebug("sortedEntriesRes.isErr()");
       return okAsync(false);
     }
     const { value: sortedEntries } = sortedEntriesRes;
-    logTrace("sortedEntries:");
-    logTrace(sortedEntriesRes);
 
     const bytesToVerify = generateSignatureBytes(sortedEntries);
     const decodedSignatureRes = decodeBase64Url(signature);
     if (decodedSignatureRes.isErr()) {
-      logDebug("decodedSignatureRes.isErr()");
       return okAsync(false);
     }
     const { value: decodedSignature } = decodedSignatureRes;
 
-    logDebug("verifySignatureHeader end, return promise result from verify");
     return ResultAsync.fromPromise(verify(keyId, bytesToVerify, decodedSignature), (error) => ({
       type: "VerifyFailed",
       message: "Failed to verify signature header",
       rawError: error,
     }));
   } catch (error) {
-    logDebug("verifySignatureHeader error");
-    logDebug(error);
     return errAsync({
       type: "VerifyFailed",
       message: "Failed to verify signature header with unexpected error",

@@ -6,26 +6,19 @@
 
 import { decodeURLSafe } from "@stablelib/base64";
 import { Buffer } from "buffer";
-import Debug from "debug";
 import { err, ok, Result } from "neverthrow";
 import { join, pipe, split } from "ramda";
 
 import { VerifyDataEntry } from "./types";
-
-const logDebug = Debug("common");
-const logErr = Debug("common:err");
 
 export const splitWithSpace = split(" ");
 export const joinWithSpace = join(" ");
 export const stringToBytes = (str: string): Uint8Array => Uint8Array.from(Buffer.from(str, "utf-8"));
 
 export const decodeBase64Url = (bytes: string): Result<Uint8Array, string> => {
-  logDebug("decodeBase64Url start");
   try {
     return ok(decodeURLSafe(bytes));
   } catch (error) {
-    logErr("decodeBase64Url error:");
-    logErr(error);
     return err("Failed to decode base64 bytes");
   }
 };
