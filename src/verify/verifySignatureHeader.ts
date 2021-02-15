@@ -120,7 +120,7 @@ export const verifySignatureHeader = (
   } catch (error) {
     return errAsync({
       type: "VerifyFailed",
-      message: "Failed to verify signature header with unexpected error",
+      message: "An error occurred when verifying signature header",
     });
   }
 };

@@ -119,7 +119,7 @@ export const createSignatureHeader = (
   } catch (error) {
     return errAsync({
       type: "SignFailed",
-      message: "Failed to create signature header with unexpected error",
+      message: "An error occurred when signing signature header",
     });
   }
 };
