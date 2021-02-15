@@ -113,7 +113,8 @@ describe("createSignatureHeader", () => {
   });
 
   it("Should return an error if sign throws", async (done) => {
-    const badSign = (): Promise<Uint8Array> => Promise.reject(Error("unexpected error"));
+    const error = Error("unexpected error");
+    const badSign = (): Promise<Uint8Array> => Promise.reject(error);
     const options = {
       ...createSignatureHeaderOptions,
       signer: { keyId: "key1", sign: badSign },
@@ -125,13 +126,17 @@ describe("createSignatureHeader", () => {
       return done.fail("result is not an error");
     }
 
-    await expect(result.error).toEqual({ type: "SignFailed", message: "Failed to sign signature header" });
+    await expect(result.error).toEqual({
+      type: "SignFailed",
+      message: "Failed to sign signature header",
+    });
     done();
   });
 
-  it("Should return an error if an exception is thrown", async (done) => {
+  it("Should return a handled error if an unexpected error is thrown", async (done) => {
+    const error = Error("Error");
     const badSign = (): Promise<Uint8Array> => {
-      throw Error("Error");
+      throw error;
     };
 
     const options = {
@@ -145,7 +150,10 @@ describe("createSignatureHeader", () => {
       return done.fail("result is not an error");
     }
 
-    expect(result.error).toEqual({ type: "Error", message: "Failed to create signature header" });
+    expect(result.error).toEqual({
+      type: "SignFailed",
+      message: "An error occurred when signing signature header",
+    });
     done();
   });
 });

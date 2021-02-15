@@ -4,11 +4,18 @@
  * Confidential and proprietary
  */
 
-import { ResultAsync, okAsync, errAsync, err } from "neverthrow";
-import { all, both, includes, isEmpty, isNil, pickBy, toLower } from "ramda";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { includes, pickBy, toLower } from "ramda";
 
-import { decodeBase64Url, generateDigest, generateSignatureBytes, splitWithSpace } from "../common";
-import { HttpHeaders, generateVerifyData, generateSortedVerifyDataEntries } from "../common";
+import {
+  decodeBase64Url,
+  generateSignatureBytes,
+  generateSortedVerifyDataEntries,
+  generateVerifyData,
+  HttpHeaders,
+  reduceKeysToLowerCase,
+  splitWithSpace,
+} from "../common";
 import { VerifySignatureHeaderError } from "../errors";
 
 import { getSignatureParams } from "./getSignatureParams";
@@ -58,7 +65,10 @@ export const verifySignatureHeader = (
   } = options;
 
   try {
-    const { Signature: signatureString } = httpHeaders;
+    // need to make sure signature header is in lower case
+    // SuperTest set() convert header to lower case
+    const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
+    const { signature: signatureString } = lowerCaseHttpHeaders as HttpHeaders;
     if (typeof signatureString !== "string") {
       return okAsync(false);
     }
@@ -108,6 +118,9 @@ export const verifySignatureHeader = (
       message: "Failed to verify signature header",
     }));
   } catch (error) {
-    return errAsync({ type: "Error", message: "Failed to verify signature header" });
+    return errAsync({
+      type: "VerifyFailed",
+      message: "An error occurred when verifying signature header",
+    });
   }
 };

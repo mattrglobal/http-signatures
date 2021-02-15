@@ -12,7 +12,7 @@ import { VerifyData } from "./types";
 
 import { joinWithSpace } from "./index";
 
-const reduceKeysToLowerCase = (obj: object): object =>
+export const reduceKeysToLowerCase = (obj: object): object =>
   Object.entries(obj).reduce((acc, [k, v]) => ({ ...acc, [k.toLowerCase()]: v }), {});
 const isObjectKeysIgnoreCaseDuplicated = (obj: object): boolean =>
   pipe(keys, map(toLower), uniq, length, equals(keys(obj).length), not)(obj);

@@ -11,11 +11,11 @@ import { isEmpty, map, pipe } from "ramda";
 import {
   generateDigest,
   generateSignatureBytes,
-  joinWithSpace,
-  HttpHeaders,
-  VerifyDataEntry,
-  generateVerifyData,
   generateSortedVerifyDataEntries,
+  generateVerifyData,
+  HttpHeaders,
+  joinWithSpace,
+  VerifyDataEntry,
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
@@ -117,6 +117,9 @@ export const createSignatureHeader = (
       };
     });
   } catch (error) {
-    return errAsync({ type: "Error", message: "Failed to create signature header" });
+    return errAsync({
+      type: "SignFailed",
+      message: "An error occurred when signing signature header",
+    });
   }
 };
