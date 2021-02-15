@@ -319,7 +319,7 @@ describe("verifySignatureHeader", () => {
 
     expect(result.error).toEqual({
       type: "VerifyFailed",
-      message: "Failed to verify signature header with unexpected error",
+      message: "An error occurred when verifying signature header",
     });
     done();
   });

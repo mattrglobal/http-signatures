@@ -152,7 +152,7 @@ describe("createSignatureHeader", () => {
 
     expect(result.error).toEqual({
       type: "SignFailed",
-      message: "Failed to create signature header with unexpected error",
+      message: "An error occurred when signing signature header",
     });
     done();
   });
