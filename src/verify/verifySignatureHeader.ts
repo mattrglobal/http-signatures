@@ -113,16 +113,14 @@ export const verifySignatureHeader = (
     }
     const { value: decodedSignature } = decodedSignatureRes;
 
-    return ResultAsync.fromPromise(verify(keyId, bytesToVerify, decodedSignature), (error) => ({
+    return ResultAsync.fromPromise(verify(keyId, bytesToVerify, decodedSignature), () => ({
       type: "VerifyFailed",
       message: "Failed to verify signature header",
-      rawError: error,
     }));
   } catch (error) {
     return errAsync({
       type: "VerifyFailed",
       message: "Failed to verify signature header with unexpected error",
-      rawError: error,
     });
   }
 };

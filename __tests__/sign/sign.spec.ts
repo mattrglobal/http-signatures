@@ -11,11 +11,6 @@ import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHea
 describe("createSignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
 
-  afterEach(() => {
-    jest.clearAllMocks();
-    jest.restoreAllMocks();
-  });
-
   it("Should create a signature and a digest", async (done) => {
     const seed = generateKeyPairFromSeed(new Uint8Array(32));
     const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
@@ -134,7 +129,6 @@ describe("createSignatureHeader", () => {
     await expect(result.error).toEqual({
       type: "SignFailed",
       message: "Failed to sign signature header",
-      rawError: error,
     });
     done();
   });
@@ -159,7 +153,6 @@ describe("createSignatureHeader", () => {
     expect(result.error).toEqual({
       type: "SignFailed",
       message: "Failed to create signature header with unexpected error",
-      rawError: error,
     });
     done();
   });

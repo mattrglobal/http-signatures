@@ -105,10 +105,9 @@ export const createSignatureHeader = (
     const bytesToSign = generateSignatureBytes(sortedEntries);
     const headersListString = generateHeadersListString(sortedEntries);
 
-    return ResultAsync.fromPromise<Uint8Array, CreateSignatureHeaderError>(sign(bytesToSign), (error) => ({
+    return ResultAsync.fromPromise<Uint8Array, CreateSignatureHeaderError>(sign(bytesToSign), () => ({
       type: "SignFailed",
       message: "Failed to sign signature header",
-      rawError: error,
     })).map((result) => {
       const signatureBase64 = base64URLEncode(result);
       const signatureHeaderValue = `keyId="${keyId}",algorithm="${algorithm}",created=${created},headers="${headersListString}",signature="${signatureBase64}"`;
@@ -121,7 +120,6 @@ export const createSignatureHeader = (
     return errAsync({
       type: "SignFailed",
       message: "Failed to create signature header with unexpected error",
-      rawError: error,
     });
   }
 };

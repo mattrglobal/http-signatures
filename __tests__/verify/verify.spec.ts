@@ -7,6 +7,7 @@ import * as base64 from "@stablelib/base64";
 import { generateKeyPairFromSeed, KeyPair, sign, verify } from "@stablelib/ed25519";
 
 import { verifySignatureHeader, createSignatureHeader, CreateSignatureHeaderOptions } from "../../src";
+import { reduceKeysToLowerCase } from "../../src/common";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
 describe("verifySignatureHeader", () => {
@@ -34,24 +35,33 @@ describe("verifySignatureHeader", () => {
     });
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-    jest.restoreAllMocks();
-  });
-
   it("Should verify a valid signature", async () => {
+    const validHttpHeaderInput = {
+      Digest: `${createSignatureResult.digest}`,
+      Signature: createSignatureResult.signature,
+    };
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
-        Digest: `${createSignatureResult.digest}`,
-        Signature: createSignatureResult.signature,
+        ...validHttpHeaderInput,
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEd25519(keyPair.publicKey) },
     });
-
     expect(result.isOk()).toBe(true);
+
+    const lowerCaseValidHttpHeaderInput = reduceKeysToLowerCase(validHttpHeaderInput);
+    const resultWithLowerCaseHeader = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        ...lowerCaseValidHttpHeaderInput,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyEd25519(keyPair.publicKey) },
+    });
+    expect(resultWithLowerCaseHeader.isOk()).toBe(true);
   });
 
   it("Should return verified false when verifying a tampered signature", async (done) => {
@@ -267,7 +277,7 @@ describe("verifySignatureHeader", () => {
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
         Digest: `${createSignatureResult.digest}`,
-        signature: createSignatureResult.signature,
+        Signature: createSignatureResult.signature,
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
@@ -282,7 +292,6 @@ describe("verifySignatureHeader", () => {
     expect(result.error).toEqual({
       type: "VerifyFailed",
       message: "Failed to verify signature header",
-      rawError: error,
     });
     done();
   });
@@ -296,7 +305,7 @@ describe("verifySignatureHeader", () => {
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
         Digest: `${createSignatureResult.digest}`,
-        signature: createSignatureResult.signature,
+        Signature: createSignatureResult.signature,
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
@@ -311,7 +320,6 @@ describe("verifySignatureHeader", () => {
     expect(result.error).toEqual({
       type: "VerifyFailed",
       message: "Failed to verify signature header with unexpected error",
-      rawError: error,
     });
     done();
   });
