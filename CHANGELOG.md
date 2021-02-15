@@ -1,3 +1,12 @@
+# [0.4.0](https://github.com/mattrglobal/http-signatures/compare/0.2.0...0.4.0) (2021-02-15)
+
+
+### Bug Fixes
+
+*  signature header should be case agnostic  ([#10](https://github.com/mattrglobal/http-signatures/issues/10)) ([7aae08a](https://github.com/mattrglobal/http-signatures/commit/7aae08a45d05d039a1d441f0daeb81ad2e87c7f3))
+
+
+
 # [0.3.0](https://github.com/mattrglobal/http-signatures/compare/0.2.0...0.3.0) (2021-01-26)
 
 
