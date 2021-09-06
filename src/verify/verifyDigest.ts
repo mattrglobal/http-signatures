@@ -8,7 +8,10 @@ import { equals, isNil, pipe } from "ramda";
 
 import { generateDigest } from "../common";
 
-export const verifyDigest = (digest: string | string[], body: object | string | undefined): boolean => {
+export const verifyDigest = (
+  digest: string | string[],
+  body: Record<string, unknown> | string | undefined
+): boolean => {
   if (Array.isArray(digest)) {
     return false;
   }

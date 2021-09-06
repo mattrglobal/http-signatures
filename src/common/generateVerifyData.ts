@@ -12,9 +12,9 @@ import { VerifyData } from "./types";
 
 import { joinWithSpace } from "./index";
 
-export const reduceKeysToLowerCase = (obj: object): object =>
+export const reduceKeysToLowerCase = <T extends Record<string, unknown>>(obj: T): Record<string, T[keyof T]> =>
   Object.entries(obj).reduce((acc, [k, v]) => ({ ...acc, [k.toLowerCase()]: v }), {});
-const isObjectKeysIgnoreCaseDuplicated = (obj: object): boolean =>
+const isObjectKeysIgnoreCaseDuplicated = (obj: Record<string, unknown>): boolean =>
   pipe(keys, map(toLower), uniq, length, equals(keys(obj).length), not)(obj);
 
 type GenerateVerifyDataEntriesOptions = {

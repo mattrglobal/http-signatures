@@ -54,7 +54,7 @@ export type CreateSignatureHeaderOptions = {
   /**
    * The body of the request
    */
-  readonly body?: object | string;
+  readonly body?: Record<string, unknown> | string;
 };
 
 /**

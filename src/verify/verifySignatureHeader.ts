@@ -44,7 +44,7 @@ export type VerifySignatureHeaderOptions = {
   /**
    * The body of the request
    */
-  readonly body?: object | string;
+  readonly body?: Record<string, unknown> | string;
 };
 
 /**
@@ -68,7 +68,7 @@ export const verifySignatureHeader = (
     // need to make sure signature header is in lower case
     // SuperTest set() convert header to lower case
     const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
-    const { signature: signatureString } = lowerCaseHttpHeaders as HttpHeaders;
+    const { signature: signatureString } = lowerCaseHttpHeaders;
     if (typeof signatureString !== "string") {
       return okAsync(false);
     }
