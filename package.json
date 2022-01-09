@@ -24,6 +24,7 @@
   "homepage": "https://github.com/mattrglobal/http-signatures#readme",
   "scripts": {
     "build": "rm -rf lib/ && tsc --pretty",
+    "clean": "rm -rf lib/",
     "test": "jest --passWithNoTests",
     "pre-pr": "yarn format && yarn lint:fix && yarn build && yarn test",
     "lint": "eslint . --ext .ts --color --format=table && prettier --check '**/*.{js,ts,md,json,yml}'",
@@ -31,6 +32,7 @@
     "format": "prettier --write '**/*.{js,ts,md,json,yml}'",
     "docs": "typedoc --plugin typedoc-plugin-markdown --theme docusaurus",
     "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",
+    "version:release": "yarn version --message \"chore(release): publish\"",
     "publish:stable": "./scripts/publish_stable.sh",
     "publish:unstable": "./scripts/publish_unstable.sh"
   },
