@@ -1,3 +1,7 @@
+# [1.0.0](https://github.com/mattrglobal/http-signatures/compare/0.4.0...1.0.0) (2022-01-09)
+
+
+
 # [0.4.0](https://github.com/mattrglobal/http-signatures/compare/0.3.0...0.4.0) (2021-02-15)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "@mattrglobal/http-signatures",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Http request signing and verifying",
   "private": false,
   "main": "lib/index.js",
