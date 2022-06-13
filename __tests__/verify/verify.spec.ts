@@ -64,7 +64,7 @@ describe("verifySignatureHeader", () => {
     expect(resultWithLowerCaseHeader.isOk()).toBe(true);
   });
 
-  it("Should return verified false when verifying a tampered signature", async (done) => {
+  it("Should return verified false when verifying a tampered signature", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
@@ -78,11 +78,10 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
 
     expect(result.value).toEqual(false);
-    done();
   });
 
   it("Should ignore headers not included in a signature string headers", async () => {
@@ -102,7 +101,7 @@ describe("verifySignatureHeader", () => {
     expect(result.isOk()).toBe(true);
   });
 
-  it("Should return verified false if headers to verify do not match headers defined in the signature string", async (done) => {
+  it("Should return verified false if headers to verify do not match headers defined in the signature string", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
         randomHeader: "value",
@@ -115,14 +114,13 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
 
     expect(result.value).toEqual(false);
-    done();
   });
 
-  it("Should return verified false if signature header is not a string", async (done) => {
+  it("Should return verified false if signature header is not a string", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {},
       method: createSignatureHeaderOptions.method,
@@ -131,11 +129,10 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
 
     expect(result.value).toEqual(false);
-    done();
   });
 
   test.each([
@@ -158,7 +155,7 @@ describe("verifySignatureHeader", () => {
     expect(result).toMatchObject({ value: false });
   });
 
-  it("Should return verified false if an err is returned from decoding", async (done) => {
+  it("Should return verified false if an err is returned from decoding", async () => {
     const mockDecode = jest.spyOn(base64, "decodeURLSafe");
     const errorString = "error decoding";
     mockDecode.mockImplementationOnce(() => {
@@ -178,14 +175,13 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
 
     expect(result.value).toEqual(false);
-    done();
   });
 
-  it("Should return verified false if included http headers contain duplicate case insensitive headers", async (done) => {
+  it("Should return verified false if included http headers contain duplicate case insensitive headers", async () => {
     // NOTE: We don't return verified result error messages so cannot confirm exact place of failure just that it returned false
     // We could achieve this by creating and running expects on spys surrounding the expected failure point
     const result = await verifySignatureHeader({
@@ -202,13 +198,12 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
     expect(result.value).toEqual(false);
-    done();
   });
 
-  it("Should return a verified false if the body has been tampered", async (done) => {
+  it("Should return a verified false if the body has been tampered", async () => {
     const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -223,13 +218,12 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
     expect(result.value).toEqual(false);
-    done();
   });
 
-  it("Should return a verified false if the body is undefined but the digest header is not", async (done) => {
+  it("Should return a verified false if the body is undefined but the digest header is not", async () => {
     const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -243,13 +237,12 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
     expect(result.value).toEqual(false);
-    done();
   });
 
-  it("Should return a verified false if the digest header is a string array", async (done) => {
+  it("Should return a verified false if the digest header is a string array", async () => {
     const badVerify = (): Promise<boolean> => Promise.reject(Error("unexpected error"));
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -264,13 +257,12 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isErr()) {
-      return done.fail("result is an error");
+      throw "result is an error";
     }
     expect(result.value).toEqual(false);
-    done();
   });
 
-  it("Should return a handled error if an error is thrown in the verify function", async (done) => {
+  it("Should return a handled error if an error is thrown in the verify function", async () => {
     const error = Error("unexpected error");
     const badVerify = (): Promise<boolean> => Promise.reject(error);
     const result = await verifySignatureHeader({
@@ -286,17 +278,16 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isOk()) {
-      return done.fail("result is not an error");
+      throw "result is not an error";
     }
 
     expect(result.error).toEqual({
       type: "VerifyFailed",
       message: "Failed to verify signature header",
     });
-    done();
   });
 
-  it("Should return a handled error if an unexpected error is thrown in the verify function", async (done) => {
+  it("Should return a handled error if an unexpected error is thrown in the verify function", async () => {
     const error = Error("unexpected error");
     const badVerify = (): Promise<boolean> => {
       throw error;
@@ -314,13 +305,12 @@ describe("verifySignatureHeader", () => {
     });
 
     if (result.isOk()) {
-      return done.fail("result is not an error");
+      throw "result is not an error";
     }
 
     expect(result.error).toEqual({
       type: "VerifyFailed",
       message: "An error occurred when verifying signature header",
     });
-    done();
   });
 });
