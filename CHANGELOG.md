@@ -1,3 +1,14 @@
+## [1.0.1](https://github.com/mattrglobal/http-signatures/compare/1.0.0...1.0.1) (2022-06-13)
+
+
+### Features
+
+* **deps:** upgrade deps ([45268d0](https://github.com/mattrglobal/http-signatures/commit/45268d0881bf595b4fdb6f0a158fd39edee801a7))
+* **deps:** upgrade deps ([4bdecc3](https://github.com/mattrglobal/http-signatures/commit/4bdecc3e7d010ecc8ef1b7a8599798f54632ec65))
+* adding github actions to backup repository to s3 ([#23](https://github.com/mattrglobal/http-signatures/issues/23)) ([d01ca51](https://github.com/mattrglobal/http-signatures/commit/d01ca51152286c90d63e2aadf8b062590ddbac96))
+
+
+
 # [1.0.0](https://github.com/mattrglobal/http-signatures/compare/0.4.0...1.0.0) (2022-01-09)
 
 
