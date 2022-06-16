@@ -8,7 +8,7 @@ import { generateSortedVerifyDataEntries } from "../../src/common";
 import { verifyData } from "../__fixtures__/verifyData";
 
 describe("generateSortedVerifyDataEntries", () => {
-  it("Should sort data according to headers order", async (done) => {
+  it("Should sort data according to headers order", (done) => {
     const headers = "(request-target) (created) host key1";
     const result = generateSortedVerifyDataEntries(verifyData, headers);
     if (result.isErr()) {
@@ -23,7 +23,7 @@ describe("generateSortedVerifyDataEntries", () => {
     done();
   });
 
-  it("Should sort with a default if no headers string is specified", async (done) => {
+  it("Should sort with a default if no headers string is specified", (done) => {
     const result = generateSortedVerifyDataEntries(verifyData);
     if (result.isErr()) {
       return done.fail("result was not ok");
@@ -37,7 +37,7 @@ describe("generateSortedVerifyDataEntries", () => {
     done();
   });
 
-  it("Should return an error if headers does not map to every key of verifyData", async (done) => {
+  it("Should return an error if headers does not map to every key of verifyData", (done) => {
     const headers = "(request-target) (created) host key1 unknownKey";
     const result = generateSortedVerifyDataEntries(verifyData, headers);
 

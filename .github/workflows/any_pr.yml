@@ -11,13 +11,13 @@ jobs:
       - name: Build and test
         uses: actions/setup-node@v1
         with:
-          node-version: 10.x
+          node-version: 16.x
       - run: yarn install --frozen-lockfile
       - run: yarn lint
       - run: yarn build
       - run: yarn test --coverage
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v1.4
+        uses: SonarSource/sonarcloud-github-action@v1.6
         with:
           args: >
             -Dsonar.scm.revision=${{ github.event.pull_request.head.sha }}
