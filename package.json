@@ -39,11 +39,11 @@
   "devDependencies": {
     "@commitlint/cli": "17.0.2",
     "@commitlint/config-conventional": "17.0.2",
-    "@stablelib/ed25519": "1.0.0",
+    "@stablelib/ed25519": "1.0.2",
     "@types/jest": "28.1.1",
     "@types/ramda": "0.27.32",
-    "@typescript-eslint/eslint-plugin": "5.27.1",
-    "@typescript-eslint/parser": "5.27.1",
+    "@typescript-eslint/eslint-plugin": "5.28.0",
+    "@typescript-eslint/parser": "5.28.0",
     "conventional-changelog": "3.1.25",
     "conventional-changelog-cli": "2.2.2",
     "cz-conventional-changelog": "3.3.0",
@@ -55,9 +55,9 @@
     "eslint-plugin-node": "11.1.0",
     "husky": "4.2.5",
     "jest": "28.1.1",
-    "prettier": "2.0.4",
+    "prettier": "2.7.1",
     "pretty-quick": "2.0.1",
-    "ts-jest": "28.0.4",
+    "ts-jest": "28.0.5",
     "ts-node": "8.4.1",
     "typedoc": "0.22.17",
     "typedoc-plugin-markdown": "3.12.1",
@@ -80,12 +80,18 @@
     }
   },
   "dependencies": {
-    "@stablelib/base64": "1.0.0",
-    "@stablelib/sha256": "1.0.0",
+    "@stablelib/base64": "1.0.1",
+    "@stablelib/sha256": "1.0.1",
     "buffer": "6.0.3",
-    "canonicalize": "1.0.5",
+    "canonicalize": "1.0.8",
     "neverthrow": "3.0.0",
     "ramda": "0.27.1",
     "url": "0.11.0"
+  },
+  "resolutions": {
+    "___BREAKING_CHANGE_BEGIN___": "___BREAKING_CHANGE_BEGIN___",
+    "husky/find-versions/semver-regex": "3.1.3",
+    "___BREAKING_CHANGE_END___": "___BREAKING_CHANGE_END___",
+    "cz-conventional-changelog/commitizen/minimist": "1.2.6"
   }
 }
