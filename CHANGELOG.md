@@ -1,3 +1,12 @@
+# [1.1.0](https://github.com/mattrglobal/http-signatures/compare/1.0.0...1.1.0) (2022-06-17)
+
+
+### Features
+
+* adding github actions to backup repository to s3 ([#23](https://github.com/mattrglobal/http-signatures/issues/23)) ([d01ca51](https://github.com/mattrglobal/http-signatures/commit/d01ca51152286c90d63e2aadf8b062590ddbac96))
+
+
+
 # [1.0.0](https://github.com/mattrglobal/http-signatures/compare/0.4.0...1.0.0) (2022-01-09)
 
 
