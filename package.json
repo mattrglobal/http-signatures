@@ -34,7 +34,8 @@
     "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",
     "version:release": "yarn version --message \"chore(release): publish\"",
     "publish:stable": "./scripts/publish_stable.sh",
-    "publish:unstable": "./scripts/publish_unstable.sh"
+    "publish:unstable": "./scripts/publish_unstable.sh",
+    "prepare": "husky install"
   },
   "devDependencies": {
     "@commitlint/cli": "17.0.2",
@@ -53,7 +54,7 @@
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-import": "2.26.0",
     "eslint-plugin-node": "11.1.0",
-    "husky": "4.2.5",
+    "husky": "8.0.1",
     "jest": "28.1.1",
     "prettier": "2.7.1",
     "pretty-quick": "2.0.1",
@@ -62,17 +63,6 @@
     "typedoc": "0.22.17",
     "typedoc-plugin-markdown": "3.12.1",
     "typescript": "4.7.3"
-  },
-  "husky": {
-    "hooks": {
-      "commit-msg": "[[ -n $HUSKY_BYPASS ]] || commitlint -E HUSKY_GIT_PARAMS",
-      "pre-commit": "[[ -n $HUSKY_BYPASS ]] || pretty-quick --staged"
-    }
-  },
-  "commitlint": {
-    "extends": [
-      "@commitlint/config-conventional"
-    ]
   },
   "config": {
     "commitizen": {
@@ -89,9 +79,6 @@
     "url": "0.11.0"
   },
   "resolutions": {
-    "___BREAKING_CHANGE_BEGIN___": "___BREAKING_CHANGE_BEGIN___",
-    "husky/find-versions/semver-regex": "3.1.3",
-    "___BREAKING_CHANGE_END___": "___BREAKING_CHANGE_END___",
     "cz-conventional-changelog/commitizen/minimist": "1.2.6"
   }
 }
