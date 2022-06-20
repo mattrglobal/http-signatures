@@ -13,11 +13,10 @@ import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHea
 describe("verifySignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
 
-  const verifyEd25519 = (publicKey: Uint8Array) => async (
-    keyId: string,
-    data: Uint8Array,
-    signature: Uint8Array
-  ): Promise<boolean> => await verify(publicKey, data, signature);
+  const verifyEd25519 =
+    (publicKey: Uint8Array) =>
+    async (keyId: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> =>
+      await verify(publicKey, data, signature);
 
   let createSignatureResult: { digest?: string; signature: string };
   let keyPair: KeyPair;

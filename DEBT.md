@@ -32,15 +32,12 @@ badcrypto.encrypt(privateData);
 | ID  | Date _(dd/MM/yy)_ | Author | Summary |
 | :-- | :---------------- | :----- | :------ |
 
-
 ## Med Priority
 
 | ID  | Date _(dd/MM/yy)_ | Author | Summary |
 | :-- | :---------------- | :----- | :------ |
 
-
 ## Low Priority
 
 | ID  | Date _(dd/MM/yy)_ | Author | Summary |
 | :-- | :---------------- | :----- | :------ |
-
