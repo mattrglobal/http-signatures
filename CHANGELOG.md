@@ -1,5 +1,8 @@
-# [1.1.0](https://github.com/mattrglobal/http-signatures/compare/1.0.0...1.1.0) (2022-06-17)
+# [2.0.0](https://github.com/mattrglobal/http-signatures/compare/1.0.0...2.0.0) (2022-06-21)
 
+### Breaking Changes
+
+* Drop support for NodeJS 10.x to 15.x.
 
 ### Features
 
