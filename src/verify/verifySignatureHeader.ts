@@ -26,7 +26,7 @@ export type VerifySignatureHeaderOptions = {
     /**
      * The function for verifying the signature
      */
-    readonly verify: (keyId: string, data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
+    readonly verify: (keyid: string, data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
   };
   /**
    * Full url of the request including query parameters
@@ -76,7 +76,7 @@ export const verifySignatureHeader = (
     if (getSignatureParamsResult.isErr()) {
       return okAsync(false);
     }
-    const { created, headers: signatureHeadersString = "", keyId, signature } = getSignatureParamsResult.value;
+    const { headers: signatureHeadersString = "", keyid, signature } = getSignatureParamsResult.value;
 
     // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
     const isMatchingHeader = (value: unknown, key: keyof HttpHeaders): boolean =>
@@ -84,7 +84,6 @@ export const verifySignatureHeader = (
     const httpHeadersToVerify = pickBy<HttpHeaders, HttpHeaders>(isMatchingHeader, httpHeaders);
 
     const verifyDataRes = generateVerifyData({
-      created,
       method,
       url,
       httpHeaders: httpHeadersToVerify,
@@ -113,7 +112,7 @@ export const verifySignatureHeader = (
     }
     const { value: decodedSignature } = decodedSignatureRes;
 
-    return ResultAsync.fromPromise(verify(keyId, bytesToVerify, decodedSignature), () => ({
+    return ResultAsync.fromPromise(verify(keyid, bytesToVerify, decodedSignature), () => ({
       type: "VerifyFailed",
       message: "Failed to verify signature header",
     }));
