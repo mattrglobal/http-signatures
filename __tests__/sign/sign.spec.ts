@@ -3,20 +3,46 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import { generateKeyPairFromSeed, sign } from "@stablelib/ed25519";
+import { AsnParser } from "@peculiar/asn1-schema";
+import crypto from "crypto";
+import { asn1 } from "webcrypto-core";
 
 import { createSignatureHeader, CreateSignatureHeaderOptions } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
+const addPadding = (pointSize: number, bytes: Buffer): Buffer => {
+  const res = Buffer.alloc(pointSize);
+  res.set(Buffer.from(bytes), pointSize - bytes.length);
+  return res;
+};
+
+const signECDSA = async (data: Uint8Array): Promise<Uint8Array> => {
+  const key = {
+    kty: "EC",
+    d: "wcHNx8kkBCcBnGY39K995TShcdOFdKtaRQLGrUELqBI",
+    crv: "P-256",
+    x: "m5dnqNXawIKF3qyCfs_raR1LtTKUtyf4t2uVa4Wmd6A",
+    y: "prF8Lo5JC2JTyj2GwtaI2LWWEaRa6v6XykjUMg-9C1U",
+    alg: "ES256",
+  };
+  const signer = crypto.createSign("sha256");
+  signer.update(data);
+  const signature = signer.sign(crypto.createPrivateKey({ key, format: "jwk" }));
+
+  // TODO: Node Crypto produce ASN.1 format of the signature, can we do it without AsnParser?
+  const ecSignature = AsnParser.parse(signature, asn1.EcDsaSignature);
+  const r = addPadding(32, Buffer.from(ecSignature.r));
+  const s = addPadding(32, Buffer.from(ecSignature.s));
+  return new Uint8Array(Buffer.concat([r, s]));
+};
+
 describe("createSignatureHeader", () => {
-  Date.now = jest.fn(() => 1577836800); //01.01.2020
+  Date.now = jest.fn(() => 1577836800000);
 
   it("Should create a signature and a digest", async () => {
-    const seed = generateKeyPairFromSeed(new Uint8Array(32));
-    const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyId: "key1", sign: signEd25519 },
+      signer: { keyid: "key1", sign: signECDSA },
     };
 
     const result = await createSignatureHeader(options);
@@ -24,45 +50,22 @@ describe("createSignatureHeader", () => {
     if (result.isErr()) {
       throw result.error;
     }
-    expect(result.value).toMatchObject({
-      digest: "SHA-256=wnRdPgQ-BTyxU5jDYMTAg3GXadmb7etzdN5ymvsJ8WQ=",
-      signature:
-        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) arrvalue content-type digest host undefinedvalue x-custom-header",signature="1rRYstzVwCxmTbuF-lzKRxR1V8eImf3lRdjFqv7olV9wxgkpQ4Z8w-B7YHDSl5Qk_NgrjLgZbhriQiiDetXzAA=="',
+
+    console.log("##", result.value);
+    expect(result.value).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig=*.*:$/),
+      signatureInput:
+        'sig=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
     });
   });
 
-  it("Should create the same signature with different order http headers", async () => {
-    const seed = generateKeyPairFromSeed(new Uint8Array(32));
-    const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
-    const options1: CreateSignatureHeaderOptions = {
-      ...createSignatureHeaderOptions,
-      body: undefined,
-      httpHeaders: { three: "3", two: "two", one: "one" },
-      signer: { keyId: "key1", sign: signEd25519 },
-    };
-    const options2: CreateSignatureHeaderOptions = {
-      ...createSignatureHeaderOptions,
-      body: undefined,
-      httpHeaders: { one: "one", two: "two", three: "3" },
-      signer: { keyId: "key1", sign: signEd25519 },
-    };
-
-    const result1 = await createSignatureHeader(options1);
-    const result2 = await createSignatureHeader(options2);
-
-    if (result1.isErr() || result2.isErr()) {
-      throw "result is an error";
-    }
-
-    expect(result1.value).toStrictEqual(result2.value);
-  });
-
   it("Should handle a string body", async () => {
-    const sign = (): Promise<Uint8Array> => Promise.resolve(Uint8Array.from([1]));
     const options = {
       ...createSignatureHeaderOptions,
       body: "string body",
-      signer: { keyId: "key1", sign: sign },
+      signer: { keyid: "key1", sign: signECDSA },
     };
 
     const result = await createSignatureHeader(options);
@@ -71,9 +74,8 @@ describe("createSignatureHeader", () => {
     }
 
     expect(result.value).toMatchObject({
-      digest: "SHA-256=qoxd-emcQclK6Mp84PxOeUumOdjbx-mSW_pxhEXlcno=",
-      signature:
-        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) arrvalue content-type digest host undefinedvalue x-custom-header",signature="AQ=="',
+      digest: "sha-256=:qoxd-emcQclK6Mp84PxOeUumOdjbx-mSW_pxhEXlcno=:",
+      signatureInput: `sig=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800`,
     });
   });
 
@@ -112,7 +114,7 @@ describe("createSignatureHeader", () => {
     const badSign = (): Promise<Uint8Array> => Promise.reject(error);
     const options = {
       ...createSignatureHeaderOptions,
-      signer: { keyId: "key1", sign: badSign },
+      signer: { keyid: "key1", sign: badSign },
     };
 
     const result = await createSignatureHeader(options);
@@ -123,7 +125,7 @@ describe("createSignatureHeader", () => {
 
     await expect(result.error).toEqual({
       type: "SignFailed",
-      message: "Failed to sign signature header",
+      message: "unexpected error",
     });
   });
 
@@ -135,7 +137,7 @@ describe("createSignatureHeader", () => {
 
     const options = {
       ...createSignatureHeaderOptions,
-      signer: { keyId: "key1", sign: badSign },
+      signer: { keyid: "key1", sign: badSign },
     };
 
     const result = await createSignatureHeader(options);

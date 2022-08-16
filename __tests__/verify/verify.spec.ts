@@ -15,7 +15,7 @@ describe("verifySignatureHeader", () => {
 
   const verifyEd25519 =
     (publicKey: Uint8Array) =>
-    async (keyId: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> =>
+    async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> =>
       await verify(publicKey, data, signature);
 
   let createSignatureResult: { digest?: string; signature: string };
@@ -26,7 +26,7 @@ describe("verifySignatureHeader", () => {
     const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(keyPair.secretKey, data);
     const createOptions: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyId: "key1", sign: signEd25519 },
+      signer: { keyid: "key1", sign: signEd25519 },
     };
     await createSignatureHeader(createOptions).then((res) => {
       expect(res.isOk()).toBe(true);
@@ -135,10 +135,10 @@ describe("verifySignatureHeader", () => {
   });
 
   test.each([
-    ["keyId", `created=1,headers="",signature=""`],
-    ["signature", `created=1,headers="",keyId=""`],
-    ["created", `signature="",headers="",keyId=""`],
-    ["headers", `signature="",created=1,keyId=""`],
+    ["keyid", `created=1,headers="",signature=""`],
+    ["signature", `created=1,headers="",keyid=""`],
+    ["created", `signature="",headers="",keyid=""`],
+    ["headers", `signature="",created=1,keyid=""`],
   ])("Should return verified false when signature header value is missing %s field", async (missing, headerValue) => {
     const result = await verifySignatureHeader({
       httpHeaders: {

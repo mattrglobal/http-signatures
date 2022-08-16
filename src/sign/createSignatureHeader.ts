@@ -4,35 +4,26 @@
  * Confidential and proprietary
  */
 
-import { encodeURLSafe as base64URLEncode } from "@stablelib/base64";
-import { errAsync, ResultAsync } from "neverthrow";
-import { isEmpty, map, pipe } from "ramda";
+import { encode as base64Encode } from "@stablelib/base64";
+import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
+import { isEmpty } from "ramda";
 
 import {
   generateDigest,
   generateSignatureBytes,
+  generateSignatureParams,
   generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
-  joinWithSpace,
-  VerifyDataEntry,
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
-
-/**
- * Generate a string containing all the keys of an object separated by a space
- * The order of the object properties that was used in signing must be preserved in this list of headers
- * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.1.6
- */
-const mapEntryKeys = map(([key]: VerifyDataEntry) => key);
-const generateHeadersListString = pipe(mapEntryKeys, joinWithSpace);
 
 export type CreateSignatureHeaderOptions = {
   readonly signer: {
     /**
      * The key id used for creating the signature. This will be added to the signature string and used in verification
      */
-    readonly keyId: string;
+    readonly keyid: string;
     /**
      * The function for signing the data with the hs2019 algorithm
      */
@@ -62,13 +53,12 @@ export type CreateSignatureHeaderOptions = {
  * A digest header will be returned if a body was included. This also needs to be appended to the request headers.
  * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-4
  */
-export const createSignatureHeader = (
+export const createSignatureHeader = async (
   options: CreateSignatureHeaderOptions
-): ResultAsync<{ digest?: string; signature: string }, CreateSignatureHeaderError> => {
+): Promise<Result<{ digest?: string; signature: string; signatureInput: string }, CreateSignatureHeaderError>> => {
   try {
-    const algorithm = "hs2019";
     const {
-      signer: { keyId, sign },
+      signer: { keyid, sign },
       method,
       httpHeaders,
       body,
@@ -78,43 +68,49 @@ export const createSignatureHeader = (
     // Disallow empty headers
     // https://tools.ietf.org/html/draft-cavage-http-signatures-12#section-2.1.6
     if (isEmpty(httpHeaders)) {
-      return errAsync({ type: "MalformedInput", message: "Http headers must not be empty" });
+      return err({ type: "MalformedInput", message: "Http headers must not be empty" });
     }
 
     const digest = body ? generateDigest(body) : undefined;
-    const created = Math.round(Date.now() / 1000);
     const verifyDataRes = generateVerifyData({
       httpHeaders: {
         ...httpHeaders,
         // Append the digest if necessary
-        ...(digest ? { Digest: digest } : {}),
+        ...(digest ? { "Content-Digest": digest } : {}),
       },
       url,
       method,
-      created,
     });
     if (verifyDataRes.isErr()) {
-      return errAsync({ type: "MalformedInput", message: verifyDataRes.error });
+      return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
-    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyDataRes.value);
+    const sortedEntriesRes = generateSortedVerifyDataEntries(
+      verifyDataRes.value,
+      `@request-target content-type host @method content-digest`
+    );
     if (sortedEntriesRes.isErr()) {
-      return errAsync({ type: "MalformedInput", message: sortedEntriesRes.error });
+      return err({ type: "MalformedInput", message: sortedEntriesRes.error });
     }
 
     const { value: sortedEntries } = sortedEntriesRes;
-    const bytesToSign = generateSignatureBytes(sortedEntries);
-    const headersListString = generateHeadersListString(sortedEntries);
 
-    return ResultAsync.fromPromise<Uint8Array, CreateSignatureHeaderError>(sign(bytesToSign), () => ({
-      type: "SignFailed",
-      message: "Failed to sign signature header",
-    })).map((result) => {
-      const signatureBase64 = base64URLEncode(result);
-      const signatureHeaderValue = `keyId="${keyId}",algorithm="${algorithm}",created=${created},headers="${headersListString}",signature="${signatureBase64}"`;
-      return {
-        signature: signatureHeaderValue,
-        digest,
-      };
+    const signatureParams = generateSignatureParams({ data: sortedEntries, alg: "ecdsa-p256-sha256", keyid });
+
+    const bytesToSign = generateSignatureBytes([...sortedEntries, ["@signature-params", signatureParams]]);
+    const signResult = await ResultAsync.fromPromise(sign(bytesToSign), (e) => e);
+
+    if (signResult.isErr()) {
+      return err({
+        type: "SignFailed",
+        message: signResult.error instanceof Error ? signResult.error.message : "Unknown",
+      });
+    }
+
+    const signature = base64Encode(signResult.value);
+    return ok({
+      signature: `sig=:${signature}:`,
+      signatureInput: `sig=${signatureParams}`,
+      digest,
     });
   } catch (error) {
     return errAsync({

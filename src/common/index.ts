@@ -31,10 +31,17 @@ const generateSignatureStringFromEntries = (entries: VerifyDataEntry[]): string 
   entries
     .map(([key, value]) => {
       const processedValue = Array.isArray(value) ? value.join(", ").trim() : value?.trim();
-      return `${key}: ${processedValue}`;
+      return `"${key}": ${processedValue}`;
     })
     .join("\n");
-export const generateSignatureBytes = pipe(generateSignatureStringFromEntries, stringToBytes);
+export const generateSignatureBytes = pipe(
+  generateSignatureStringFromEntries,
+  (v) => {
+    console.log(v);
+    return v;
+  },
+  stringToBytes
+);
 
 export * from "./generateDigest";
 export * from "./generateVerifyData";
