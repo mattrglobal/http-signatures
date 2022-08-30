@@ -1,7 +1,7 @@
 {
   "name": "@mattrglobal/http-signatures",
   "version": "2.0.0",
-  "description": "Http request signing and verifying",
+  "description": "An implementation of Http request signing and verifying",
   "private": false,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -17,7 +17,7 @@
     "url": "git+https://github.com/mattrglobal/http-signatures.git"
   },
   "author": "MATTR",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/mattrglobal/http-signatures/issues"
   },
