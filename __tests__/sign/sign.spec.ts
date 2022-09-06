@@ -3,20 +3,13 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import { AsnParser } from "@peculiar/asn1-schema";
 import crypto from "crypto";
-import { asn1 } from "webcrypto-core";
 
 import { createSignatureHeader, CreateSignatureHeaderOptions } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
-const addPadding = (pointSize: number, bytes: Buffer): Buffer => {
-  const res = Buffer.alloc(pointSize);
-  res.set(Buffer.from(bytes), pointSize - bytes.length);
-  return res;
-};
-
 const signECDSA = async (data: Uint8Array): Promise<Uint8Array> => {
+  // TODO move up to util
   const key = {
     kty: "EC",
     d: "wcHNx8kkBCcBnGY39K995TShcdOFdKtaRQLGrUELqBI",
@@ -25,15 +18,9 @@ const signECDSA = async (data: Uint8Array): Promise<Uint8Array> => {
     y: "prF8Lo5JC2JTyj2GwtaI2LWWEaRa6v6XykjUMg-9C1U",
     alg: "ES256",
   };
-  const signer = crypto.createSign("sha256");
-  signer.update(data);
-  const signature = signer.sign(crypto.createPrivateKey({ key, format: "jwk" }));
-
-  // TODO: Node Crypto produce ASN.1 format of the signature, can we do it without AsnParser?
-  const ecSignature = AsnParser.parse(signature, asn1.EcDsaSignature);
-  const r = addPadding(32, Buffer.from(ecSignature.r));
-  const s = addPadding(32, Buffer.from(ecSignature.s));
-  return new Uint8Array(Buffer.concat([r, s]));
+  const privateKey: crypto.KeyObject = crypto.createPrivateKey({ key, format: "jwk" });
+  const signature = crypto.createSign("sha256").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
+  return signature;
 };
 
 describe("createSignatureHeader", () => {
@@ -51,7 +38,6 @@ describe("createSignatureHeader", () => {
       throw result.error;
     }
 
-    console.log("##", result.value);
     expect(result.value).toEqual({
       // we can't compare the signature directly as ECDSA is not deterministic
       signature: expect.stringMatching(/^sig=*.*:$/),
