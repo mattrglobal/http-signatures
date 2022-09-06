@@ -4,7 +4,7 @@
  * Confidential and proprietary
  */
 
-import { decodeURLSafe } from "@stablelib/base64";
+import { decode as base64Decode } from "@stablelib/base64";
 import { Buffer } from "buffer";
 import { err, ok, Result } from "neverthrow";
 import { join, pipe, split } from "ramda";
@@ -17,7 +17,7 @@ export const stringToBytes = (str: string): Uint8Array => Uint8Array.from(Buffer
 
 export const decodeBase64Url = (bytes: string): Result<Uint8Array, string> => {
   try {
-    return ok(decodeURLSafe(bytes));
+    return ok(base64Decode(bytes));
   } catch (error) {
     return err("Failed to decode base64 bytes");
   }
@@ -37,7 +37,6 @@ const generateSignatureStringFromEntries = (entries: VerifyDataEntry[]): string 
 export const generateSignatureBytes = pipe(
   generateSignatureStringFromEntries,
   (v) => {
-    console.log(v);
     return v;
   },
   stringToBytes

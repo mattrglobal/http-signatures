@@ -19,14 +19,14 @@ describe("generateVerifyData", () => {
     const result = generateVerifyData(validOptions);
 
     if (result.isErr()) {
-      return done.fail(result.error);
+      return fail(result.error);
     }
     expect(result.value).toMatchObject({
-      ["(created)"]: "1577836800",
-      ["(request-target)"]: "get /test?query=1",
-      header2: "value",
-      header1: "value",
+      ["@request-target"]: "/test?query=1",
+      ["@method"]: "GET",
       host: "www.test.com",
+      header1: "value",
+      header2: "value",
     });
     done();
   });
@@ -38,26 +38,10 @@ describe("generateVerifyData", () => {
     };
     const result = generateVerifyData(options);
     if (result.isOk()) {
-      return done.fail("result is not an error");
+      return done("result is not an error");
     }
 
     expect(result.error).toEqual("Duplicate case insensitive header keys detected, specify an array of values instead");
-    done();
-  });
-
-  it("Should return an error when created date is in the future", (done) => {
-    const options = {
-      ...validOptions,
-      created: Date.now() + Date.now(),
-    };
-
-    const result = generateVerifyData(options);
-
-    if (result.isOk()) {
-      return done.fail("result is not an error");
-    }
-
-    expect(result.error).toEqual("Created date cannot be in the future");
     done();
   });
 
@@ -70,7 +54,7 @@ describe("generateVerifyData", () => {
     const result = generateVerifyData(options);
 
     if (result.isOk()) {
-      return done.fail("result is not an error");
+      return done("result is not an error");
     }
 
     expect(result.error).toEqual("Cannot resolve host and path from url");

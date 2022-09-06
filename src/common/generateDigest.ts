@@ -7,7 +7,7 @@
 import { encodeURLSafe as encodeBase64Url } from "@stablelib/base64";
 import { hash } from "@stablelib/sha256";
 import jsonCanonicalize from "canonicalize";
-import { concat, pipe } from "ramda";
+import { pipe } from "ramda";
 
 import { stringToBytes } from "./index";
 

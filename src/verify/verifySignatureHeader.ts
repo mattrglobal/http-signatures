@@ -68,19 +68,19 @@ export const verifySignatureHeader = (
     // need to make sure signature header is in lower case
     // SuperTest set() convert header to lower case
     const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
-    const { signature: signatureString } = lowerCaseHttpHeaders;
-    if (typeof signatureString !== "string") {
+    const { signature: signatureString, "signature-input": signatureInputString } = lowerCaseHttpHeaders;
+    if (typeof signatureString !== "string" || typeof signatureInputString !== "string") {
       return okAsync(false);
     }
-    const getSignatureParamsResult = getSignatureParams(signatureString);
+    const getSignatureParamsResult = getSignatureParams(signatureString, signatureInputString);
     if (getSignatureParamsResult.isErr()) {
       return okAsync(false);
     }
-    const { headers: signatureHeadersString = "", keyid, signature } = getSignatureParamsResult.value;
+    const { coveredFields: coveredFieldsHeaderString = "", keyid, signature } = getSignatureParamsResult.value;
 
     // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
     const isMatchingHeader = (value: unknown, key: keyof HttpHeaders): boolean =>
-      includes(toLower(`${key}`), splitWithSpace(signatureHeadersString));
+      includes(toLower(`${key}`), splitWithSpace(coveredFieldsHeaderString));
     const httpHeadersToVerify = pickBy<HttpHeaders, HttpHeaders>(isMatchingHeader, httpHeaders);
 
     const verifyDataRes = generateVerifyData({
@@ -99,7 +99,7 @@ export const verifySignatureHeader = (
       return okAsync(false);
     }
 
-    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, signatureHeadersString);
+    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFieldsHeaderString);
     if (sortedEntriesRes.isErr()) {
       return okAsync(false);
     }
@@ -107,6 +107,7 @@ export const verifySignatureHeader = (
 
     const bytesToVerify = generateSignatureBytes(sortedEntries);
     const decodedSignatureRes = decodeBase64Url(signature);
+
     if (decodedSignatureRes.isErr()) {
       return okAsync(false);
     }
