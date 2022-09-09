@@ -19,6 +19,7 @@ import {
 import { CreateSignatureHeaderError } from "../errors";
 
 export type CreateSignatureHeaderOptions = {
+  // TODO add signature id as an option
   readonly signer: {
     /**
      * The key id used for creating the signature. This will be added to the signature string and used in verification
@@ -37,6 +38,11 @@ export type CreateSignatureHeaderOptions = {
    * The HTTP request method of the request
    */
   readonly method: string;
+  /**
+   * Optional field to identify this signature. This will be added to the signature and signature-input fields, and helps to distinguish
+   * when multiple signatures are present. If omitted, this will default to 'sigx' where x is the lowest int not used in another signature id.
+   */
+  readonly signatureId?: string;
   /**
    * Headers and their values to include in the signing
    * The keys of these headers will be appended to the signature string for verification
@@ -60,6 +66,7 @@ export const createSignatureHeader = async (
     const {
       signer: { keyid, sign },
       method,
+      signatureId,
       httpHeaders,
       body,
       url,
@@ -69,6 +76,14 @@ export const createSignatureHeader = async (
     // https://tools.ietf.org/html/draft-cavage-http-signatures-12#section-2.1.6
     if (isEmpty(httpHeaders)) {
       return err({ type: "MalformedInput", message: "Http headers must not be empty" });
+    }
+
+    // determine appropriate key for new signature
+    let sigKeyToUse: string;
+    if (signatureId) {
+      sigKeyToUse = signatureId;
+    } else {
+      sigKeyToUse = "sig1"; // TODO
     }
 
     const digest = body ? generateDigest(body) : undefined;
@@ -84,10 +99,13 @@ export const createSignatureHeader = async (
     if (verifyDataRes.isErr()) {
       return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
-    const sortedEntriesRes = generateSortedVerifyDataEntries(
-      verifyDataRes.value,
-      `@request-target content-type host @method content-digest`
-    );
+    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyDataRes.value, [
+      "@request-target",
+      "content-type",
+      "host",
+      "@method",
+      "content-digest",
+    ]);
     if (sortedEntriesRes.isErr()) {
       return err({ type: "MalformedInput", message: sortedEntriesRes.error });
     }
@@ -108,8 +126,8 @@ export const createSignatureHeader = async (
 
     const signature = base64Encode(signResult.value);
     return ok({
-      signature: `sig=:${signature}:`,
-      signatureInput: `sig=${signatureParams}`,
+      signature: `${sigKeyToUse}=:${signature}:`,
+      signatureInput: `${sigKeyToUse}=${signatureParams}`,
       digest,
     });
   } catch (error) {

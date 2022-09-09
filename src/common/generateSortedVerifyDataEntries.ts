@@ -9,8 +9,6 @@ import { __, all, has, not, pipe, reduce, toPairs } from "ramda";
 
 import { VerifyData, VerifyDataEntry } from "./types";
 
-import { splitWithSpace } from "./index";
-
 const sortByDefault = (verifyData: VerifyData): VerifyDataEntry[] => Array.from(toPairs(verifyData)).sort();
 
 /**
@@ -18,9 +16,9 @@ const sortByDefault = (verifyData: VerifyData): VerifyDataEntry[] => Array.from(
  * @param verifyData the entries of verify object which require sorting
  * @param coveredFields the covered fields string from the signature-input header, space delimited
  */
-const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string): Result<VerifyDataEntry[], string> => {
+const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string[]): Result<VerifyDataEntry[], string> => {
   // Avoid filtering as a side effect
-  const iscoveredFieldsMissingKeys = pipe(splitWithSpace, all(has(__, verifyData)), not);
+  const iscoveredFieldsMissingKeys = pipe(all(has(__, verifyData)), not);
   if (iscoveredFieldsMissingKeys(coveredFields)) {
     return err("Header string must include the exact keys within verifyData"); // TODO update wording
   }
@@ -29,7 +27,7 @@ const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string): Res
     accumulatedEntries: VerifyDataEntry[],
     currentHeader: string
   ): VerifyDataEntry[] => [...accumulatedEntries, [currentHeader, verifyData[currentHeader]]];
-  const sortEntries = pipe(splitWithSpace, reduce<string, VerifyDataEntry[]>(reduceCoveredFieldsToEntries, []));
+  const sortEntries = pipe(reduce<string, VerifyDataEntry[]>(reduceCoveredFieldsToEntries, []));
   const sortedEntries = sortEntries(coveredFields);
 
   return ok(sortedEntries);
@@ -41,6 +39,6 @@ const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string): Res
  */
 export const generateSortedVerifyDataEntries = (
   verifyData: VerifyData,
-  coveredFields?: string
+  coveredFields?: string[]
 ): Result<VerifyDataEntry[], string> =>
   coveredFields ? sortByCoveredFields(verifyData, coveredFields) : ok(sortByDefault(verifyData));
