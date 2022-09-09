@@ -40,9 +40,32 @@ describe("createSignatureHeader", () => {
 
     expect(result.value).toEqual({
       // we can't compare the signature directly as ECDSA is not deterministic
-      signature: expect.stringMatching(/^sig=*.*:$/),
+      signature: expect.stringMatching(/^sig1=*.*:$/),
       signatureInput:
-        'sig=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
+
+  it("Should use a custom signature ID if one was provided", async () => {
+    const signatureId = "testsig123";
+    const options: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key1", sign: signECDSA },
+      signatureId,
+    };
+
+    const result = await createSignatureHeader(options);
+
+    if (result.isErr()) {
+      throw result.error;
+    }
+
+    expect(result.value).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^testsig123=*.*:$/),
+      signatureInput:
+        'testsig123=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
       digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
     });
   });
@@ -61,7 +84,7 @@ describe("createSignatureHeader", () => {
 
     expect(result.value).toMatchObject({
       digest: "sha-256=:qoxd-emcQclK6Mp84PxOeUumOdjbx-mSW_pxhEXlcno=:",
-      signatureInput: `sig=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800`,
+      signatureInput: `sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800`,
     });
   });
 

@@ -150,28 +150,28 @@ describe("verifySignatureHeader", () => {
   test.each([
     [
       "@request-target",
-      `sig=("content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+      `sig1=("content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
     ],
     [
       "content-type",
-      `sig=("@request-target" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+      `sig1=("@request-target" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
     ],
     [
       "host",
-      `sig=("@request-target" "content-type" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+      `sig1=("@request-target" "content-type" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
     ],
     [
       "method",
-      `sig=("@request-target" "content-type" "host" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+      `sig1=("@request-target" "content-type" "host" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
     ],
-    ["alg", `sig=("@request-target" "content-type" "host" "@method");keyid="key1";created=1`],
+    ["alg", `sig1=("@request-target" "content-type" "host" "@method");keyid="key1";created=1`],
     [
       "keyid",
-      `sig=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";created=1`,
+      `sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";created=1`,
     ],
     [
       "created",
-      `sig=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1"`,
+      `sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1"`,
     ],
   ])(
     "Should return verified false when signature-input header value is missing %s field",

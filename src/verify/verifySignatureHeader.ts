@@ -14,11 +14,10 @@ import {
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
-  splitWithSpace,
 } from "../common";
 import { VerifySignatureHeaderError } from "../errors";
 
-import { getSignatureParams } from "./getSignatureParams";
+import { getSignatureData } from "./getSignatureData";
 import { verifyDigest } from "./verifyDigest";
 
 export type VerifySignatureHeaderOptions = {
@@ -72,15 +71,15 @@ export const verifySignatureHeader = (
     if (typeof signatureString !== "string" || typeof signatureInputString !== "string") {
       return okAsync(false);
     }
-    const getSignatureParamsResult = getSignatureParams(signatureString, signatureInputString);
-    if (getSignatureParamsResult.isErr()) {
+    const getSignatureDataResult = getSignatureData(signatureString, signatureInputString);
+    if (getSignatureDataResult.isErr()) {
       return okAsync(false);
     }
-    const { coveredFields: coveredFieldsHeaderString = "", keyid, signature } = getSignatureParamsResult.value;
+    const { coveredFields: coveredFields = [], keyid, signature } = getSignatureDataResult.value.sig1; // TODO scale up for multiple sigs
 
     // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
     const isMatchingHeader = (value: unknown, key: keyof HttpHeaders): boolean =>
-      includes(toLower(`${key}`), splitWithSpace(coveredFieldsHeaderString));
+      includes(toLower(`${key}`), coveredFields);
     const httpHeadersToVerify = pickBy<HttpHeaders, HttpHeaders>(isMatchingHeader, httpHeaders);
 
     const verifyDataRes = generateVerifyData({
@@ -99,7 +98,7 @@ export const verifySignatureHeader = (
       return okAsync(false);
     }
 
-    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFieldsHeaderString);
+    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFields);
     if (sortedEntriesRes.isErr()) {
       return okAsync(false);
     }
