@@ -29,6 +29,7 @@ describe("verifySignatureHeader", () => {
     };
 
   let createSignatureResult: { digest?: string; signature: string; signatureInput: string };
+  let createSignatureResultTwo: { digest?: string; signature: string; signatureInput: string };
   let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 
   beforeEach(async () => {
@@ -41,6 +42,23 @@ describe("verifySignatureHeader", () => {
       expect(res.isOk()).toBe(true);
       res.isOk() ? (createSignatureResult = res.value) : undefined;
     });
+
+    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    const createOptionsTwo: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPair.privateKey) },
+      httpHeaders: {
+        ["HOST"]: "example.com",
+        ["Content-Type"]: "application/json",
+        Signature: createSignatureResult.signature,
+        ["Signature-input"]: createSignatureResult.signatureInput,
+      },
+    };
+
+    await createSignatureHeader(createOptionsTwo).then((res) => {
+      expect(res.isOk()).toBe(true);
+      res.isOk() ? (createSignatureResultTwo = res.value) : undefined;
+    });
   });
 
   it("Should verify a valid signature", async () => {
@@ -48,6 +66,36 @@ describe("verifySignatureHeader", () => {
       "Content-Digest": createSignatureResult.digest,
       Signature: createSignatureResult.signature,
       "Signature-Input": createSignatureResult.signatureInput,
+    };
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        ...validHttpHeaderInput,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyECDSA(ecdsaKeyPair.publicKey) },
+    });
+    expect(result.isOk()).toBe(true);
+
+    const lowerCaseValidHttpHeaderInput = reduceKeysToLowerCase(validHttpHeaderInput);
+    const resultWithLowerCaseHeader = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        ...lowerCaseValidHttpHeaderInput,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyECDSA(ecdsaKeyPair.publicKey) },
+    });
+    expect(resultWithLowerCaseHeader.isOk()).toBe(true);
+  });
+
+  it("Should verify a message with multiple valid signatures", async () => {
+    const validHttpHeaderInput = {
+      "Content-Digest": createSignatureResultTwo.digest,
+      Signature: createSignatureResultTwo.signature,
+      "Signature-Input": createSignatureResultTwo.signatureInput,
     };
     const result = await verifySignatureHeader({
       httpHeaders: {

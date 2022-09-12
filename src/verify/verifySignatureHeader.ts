@@ -5,19 +5,19 @@
  */
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import { includes, pickBy, toLower } from "ramda";
+import { includes, pickBy, toLower, values } from "ramda";
 
 import {
-  decodeBase64Url,
+  decodeBase64,
   generateSignatureBytes,
   generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
 } from "../common";
+import { getSignatureData } from "../common";
 import { VerifySignatureHeaderError } from "../errors";
 
-import { getSignatureData } from "./getSignatureData";
 import { verifyDigest } from "./verifyDigest";
 
 export type VerifySignatureHeaderOptions = {
@@ -63,6 +63,8 @@ export const verifySignatureHeader = (
     body,
   } = options;
 
+  const verifications: Promise<boolean>[] = [];
+
   try {
     // need to make sure signature header is in lower case
     // SuperTest set() convert header to lower case
@@ -75,47 +77,60 @@ export const verifySignatureHeader = (
     if (getSignatureDataResult.isErr()) {
       return okAsync(false);
     }
-    const { coveredFields: coveredFields = [], keyid, signature } = getSignatureDataResult.value.sig1; // TODO scale up for multiple sigs
 
-    // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
-    const isMatchingHeader = (value: unknown, key: keyof HttpHeaders): boolean =>
-      includes(toLower(`${key}`), coveredFields);
-    const httpHeadersToVerify = pickBy<HttpHeaders, HttpHeaders>(isMatchingHeader, httpHeaders);
+    const signatureSet = getSignatureDataResult.value;
 
-    const verifyDataRes = generateVerifyData({
-      method,
-      url,
-      httpHeaders: httpHeadersToVerify,
-    });
-    if (verifyDataRes.isErr()) {
-      return okAsync(false);
+    for (const signatureId in signatureSet) {
+      const { coveredFields: coveredFields = [], keyid, signature } = signatureSet[signatureId];
+
+      // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
+      const isMatchingHeader = (value: unknown, key: keyof HttpHeaders): boolean =>
+        includes(toLower(`${key}`), coveredFields);
+      const httpHeadersToVerify = pickBy<HttpHeaders, HttpHeaders>(isMatchingHeader, httpHeaders);
+
+      const verifyDataRes = generateVerifyData({
+        method,
+        url,
+        httpHeaders: httpHeadersToVerify,
+      });
+      if (verifyDataRes.isErr()) {
+        return okAsync(false);
+      }
+      const { value: verifyData } = verifyDataRes;
+
+      const digest = verifyData["digest"];
+      // Verify the digest if it's present
+      if (digest !== undefined && !verifyDigest(digest, body)) {
+        return okAsync(false);
+      }
+
+      const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFields);
+      if (sortedEntriesRes.isErr()) {
+        return okAsync(false);
+      }
+      const { value: sortedEntries } = sortedEntriesRes;
+
+      const bytesToVerify = generateSignatureBytes(sortedEntries);
+      const decodedSignatureRes = decodeBase64(signature);
+
+      if (decodedSignatureRes.isErr()) {
+        return okAsync(false);
+      }
+      const { value: decodedSignature } = decodedSignatureRes;
+
+      // should not return!!
+      // needs to add to a list
+
+      verifications.push(verify(keyid, bytesToVerify, decodedSignature));
     }
-    const { value: verifyData } = verifyDataRes;
 
-    const digest = verifyData["digest"];
-    // Verify the digest if it's present
-    if (digest !== undefined && !verifyDigest(digest, body)) {
-      return okAsync(false);
-    }
-
-    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFields);
-    if (sortedEntriesRes.isErr()) {
-      return okAsync(false);
-    }
-    const { value: sortedEntries } = sortedEntriesRes;
-
-    const bytesToVerify = generateSignatureBytes(sortedEntries);
-    const decodedSignatureRes = decodeBase64Url(signature);
-
-    if (decodedSignatureRes.isErr()) {
-      return okAsync(false);
-    }
-    const { value: decodedSignature } = decodedSignatureRes;
-
-    return ResultAsync.fromPromise(verify(keyid, bytesToVerify, decodedSignature), () => ({
-      type: "VerifyFailed",
-      message: "Failed to verify signature header",
-    }));
+    return ResultAsync.fromPromise(
+      Promise.all(verifications).then((arr) => arr.reduce((acc, val) => acc && !!val, true)),
+      () => ({
+        type: "VerifyFailed",
+        message: "Failed to verify signature header",
+      })
+    );
   } catch (error) {
     return errAsync({
       type: "VerifyFailed",

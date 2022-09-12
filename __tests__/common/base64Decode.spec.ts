@@ -5,13 +5,13 @@
  */
 import { encodeURLSafe as encodeBase64Url } from "@stablelib/base64";
 
-import { decodeBase64Url } from "../../src/common";
+import { decodeBase64 } from "../../src/common";
 
 describe("base64Decode", () => {
   it("Should decode valid base64", (done) => {
     const bytes = new Uint8Array(10);
     const base64 = encodeBase64Url(bytes);
-    const result = decodeBase64Url(base64);
+    const result = decodeBase64(base64);
 
     if (result.isErr()) {
       return done.fail(result.error);
@@ -22,7 +22,7 @@ describe("base64Decode", () => {
   });
 
   it("Should return an err with invalid base64", (done) => {
-    const result = decodeBase64Url("Invalid base 64");
+    const result = decodeBase64("Invalid base 64");
 
     if (result.isOk()) {
       return done.fail("Failed to decode base64 bytes");
