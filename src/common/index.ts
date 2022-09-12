@@ -15,7 +15,7 @@ export const splitWithSpace = split(" ");
 export const joinWithSpace = join(" ");
 export const stringToBytes = (str: string): Uint8Array => Uint8Array.from(Buffer.from(str, "utf-8"));
 
-export const decodeBase64Url = (bytes: string): Result<Uint8Array, string> => {
+export const decodeBase64 = (bytes: string): Result<Uint8Array, string> => {
   try {
     return ok(base64Decode(bytes));
   } catch (error) {
@@ -44,5 +44,6 @@ export const generateSignatureBytes = pipe(
 
 export * from "./generateDigest";
 export * from "./generateVerifyData";
+export * from "./getSignatureData";
 export * from "./generateSortedVerifyDataEntries";
 export * from "./types";

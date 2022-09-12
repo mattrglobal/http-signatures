@@ -14,13 +14,13 @@ const sortByDefault = (verifyData: VerifyData): VerifyDataEntry[] => Array.from(
 /**
  * Sorts verifiedDataEntries into the order the header string defines
  * @param verifyData the entries of verify object which require sorting
- * @param coveredFields the covered fields string from the signature-input header, space delimited
+ * @param coveredFields the covered fields list from the signature-input header
  */
 const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string[]): Result<VerifyDataEntry[], string> => {
   // Avoid filtering as a side effect
   const iscoveredFieldsMissingKeys = pipe(all(has(__, verifyData)), not);
   if (iscoveredFieldsMissingKeys(coveredFields)) {
-    return err("Header string must include the exact keys within verifyData"); // TODO update wording
+    return err("Covered fields list must include the exact keys within verifyData");
   }
 
   const reduceCoveredFieldsToEntries = (

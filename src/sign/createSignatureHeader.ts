@@ -15,6 +15,8 @@ import {
   generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
+  getSignatureData,
+  reduceKeysToLowerCase,
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
@@ -79,11 +81,45 @@ export const createSignatureHeader = async (
     }
 
     // determine appropriate key for new signature
-    let sigKeyToUse: string;
-    if (signatureId) {
-      sigKeyToUse = signatureId;
+    let sigKeyToUse: string | undefined = undefined;
+    let existingSignatures = false;
+
+    const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
+    const { signature: signatureString, "signature-input": signatureInputString } = lowerCaseHttpHeaders;
+
+    if (typeof signatureString == "string" && typeof signatureInputString == "string") {
+      existingSignatures = true;
+
+      const existingSignatureData = getSignatureData(signatureString, signatureInputString);
+      if (existingSignatureData.isErr()) {
+        // TODO should we fail to sign or overwrite if the message contains existing invalid signatures?
+        return err({ type: "MalformedInput", message: existingSignatureData.error });
+      }
+
+      if (signatureId) {
+        if (signatureId in existingSignatureData) {
+          return err({ type: "SignFailed", message: "Specified signature id is already in use" });
+        }
+        sigKeyToUse = signatureId;
+      } else {
+        for (let i = 1; i < 100; i++) {
+          // only supports up to 100 for now
+          if (!(`sig${i}` in existingSignatureData.value)) {
+            sigKeyToUse = `sig${i}`;
+            break;
+          }
+        }
+        if (!sigKeyToUse) {
+          return err({ type: "SignFailed", message: "Could not find a valid signature id to use" });
+        }
+      }
     } else {
-      sigKeyToUse = "sig1"; // TODO
+      // no existing valid signature data
+      if (signatureId) {
+        sigKeyToUse = signatureId;
+      } else {
+        sigKeyToUse = "sig1";
+      }
     }
 
     const digest = body ? generateDigest(body) : undefined;
@@ -125,9 +161,10 @@ export const createSignatureHeader = async (
     }
 
     const signature = base64Encode(signResult.value);
+
     return ok({
-      signature: `${sigKeyToUse}=:${signature}:`,
-      signatureInput: `${sigKeyToUse}=${signatureParams}`,
+      signature: `${existingSignatures ? signatureString + ", " : ""}${sigKeyToUse}=:${signature}:`,
+      signatureInput: `${existingSignatures ? signatureInputString + ", " : ""}${sigKeyToUse}=${signatureParams}`,
       digest,
     });
   } catch (error) {

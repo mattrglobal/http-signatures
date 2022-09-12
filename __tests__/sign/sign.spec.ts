@@ -70,6 +70,51 @@ describe("createSignatureHeader", () => {
     });
   });
 
+  it("Should be able to create multiple signatures on the same message", async () => {
+    const options: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key1", sign: signECDSA },
+    };
+
+    const result = await createSignatureHeader(options);
+
+    if (result.isErr()) {
+      throw result.error;
+    }
+
+    const createSecondSignatureHeaderOptions = {
+      signer: { keyid: "key2", sign: signECDSA },
+      url: "http://example.com/foo?param=value&pet=dog",
+      method: "POST",
+      httpHeaders: {
+        ["HOST"]: "example.com",
+        ["Content-Type"]: "application/json",
+        Signature: result.value.signature,
+        "Signature-Input":
+          'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+        "Content-Digest": "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+      },
+      body: `{"hello": "world"}`,
+    };
+    const optionsTwo: CreateSignatureHeaderOptions = {
+      ...createSecondSignatureHeaderOptions,
+    };
+
+    const resultTwo = await createSignatureHeader(optionsTwo);
+
+    if (resultTwo.isErr()) {
+      throw resultTwo.error;
+    }
+
+    expect(resultTwo.value).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig1=*.*:, sig2=*.*:$/),
+      signatureInput:
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800, sig2=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key2";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
+
   it("Should handle a string body", async () => {
     const options = {
       ...createSignatureHeaderOptions,
