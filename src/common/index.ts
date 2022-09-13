@@ -27,7 +27,7 @@ export const decodeBase64 = (bytes: string): Result<Uint8Array, string> => {
  * We need to use entries so we can guarantee the order of the keys when iterated on
  * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.3
  */
-const generateSignatureStringFromEntries = (entries: VerifyDataEntry[]): string =>
+const generateSignatureBase = (entries: VerifyDataEntry[]): string =>
   entries
     .map(([key, value]) => {
       const processedValue = Array.isArray(value) ? value.join(", ").trim() : value?.trim();
@@ -35,7 +35,7 @@ const generateSignatureStringFromEntries = (entries: VerifyDataEntry[]): string 
     })
     .join("\n");
 export const generateSignatureBytes = pipe(
-  generateSignatureStringFromEntries,
+  generateSignatureBase,
   (v) => {
     return v;
   },

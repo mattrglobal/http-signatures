@@ -95,6 +95,7 @@ describe("createSignatureHeader", () => {
         "Content-Digest": "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
       },
       body: `{"hello": "world"}`,
+      existingSignatureKey: "sig1",
     };
     const optionsTwo: CreateSignatureHeaderOptions = {
       ...createSecondSignatureHeaderOptions,
@@ -110,7 +111,7 @@ describe("createSignatureHeader", () => {
       // we can't compare the signature directly as ECDSA is not deterministic
       signature: expect.stringMatching(/^sig1=*.*:, sig2=*.*:$/),
       signatureInput:
-        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800, sig2=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key2";created=1577836800',
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800, sig2=("@request-target" "content-type" "host" "@method" "content-digest" "signature";key="sig1");alg="ecdsa-p256-sha256";keyid="key2";created=1577836800',
       digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
     });
   });

@@ -7,6 +7,7 @@
 import { encode as base64Encode } from "@stablelib/base64";
 import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
 import { isEmpty } from "ramda";
+import { parseDictionary, Item, InnerList } from "structured-headers";
 
 import {
   generateDigest,
@@ -15,13 +16,11 @@ import {
   generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
-  getSignatureData,
   reduceKeysToLowerCase,
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
 export type CreateSignatureHeaderOptions = {
-  // TODO add signature id as an option
   readonly signer: {
     /**
      * The key id used for creating the signature. This will be added to the signature string and used in verification
@@ -54,6 +53,10 @@ export type CreateSignatureHeaderOptions = {
    * The body of the request
    */
   readonly body?: Record<string, unknown> | string;
+  /**
+   * If it's desired to sign over a previous signature, the key of the signature must be specified
+   */
+  readonly existingSignatureKey?: string;
 };
 
 /**
@@ -72,6 +75,7 @@ export const createSignatureHeader = async (
       httpHeaders,
       body,
       url,
+      existingSignatureKey,
     } = options;
 
     // Disallow empty headers
@@ -85,26 +89,30 @@ export const createSignatureHeader = async (
     let existingSignatures = false;
 
     const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
-    const { signature: signatureString, "signature-input": signatureInputString } = lowerCaseHttpHeaders;
+    const { signature: existingSignatureString, "signature-input": existingSignatureInputString } =
+      lowerCaseHttpHeaders;
+    let existingSignatureData: Map<string, Item | InnerList> = new Map();
+    let existingSignatureInputData: Map<string, Item | InnerList> = new Map();
 
-    if (typeof signatureString == "string" && typeof signatureInputString == "string") {
+    if (typeof existingSignatureString == "string" && typeof existingSignatureInputString == "string") {
       existingSignatures = true;
 
-      const existingSignatureData = getSignatureData(signatureString, signatureInputString);
-      if (existingSignatureData.isErr()) {
-        // TODO should we fail to sign or overwrite if the message contains existing invalid signatures?
-        return err({ type: "MalformedInput", message: existingSignatureData.error });
+      try {
+        existingSignatureInputData = parseDictionary(existingSignatureInputString);
+        existingSignatureData = parseDictionary(existingSignatureString);
+      } catch {
+        return err({ type: "MalformedInput", message: "Unable to parse existing signature data" });
       }
 
       if (signatureId) {
-        if (signatureId in existingSignatureData) {
+        if (existingSignatureData.get(signatureId)) {
           return err({ type: "SignFailed", message: "Specified signature id is already in use" });
         }
         sigKeyToUse = signatureId;
       } else {
         for (let i = 1; i < 100; i++) {
           // only supports up to 100 for now
-          if (!(`sig${i}` in existingSignatureData.value)) {
+          if (!existingSignatureData.get(`sig${i}`)) {
             sigKeyToUse = `sig${i}`;
             break;
           }
@@ -115,14 +123,11 @@ export const createSignatureHeader = async (
       }
     } else {
       // no existing valid signature data
-      if (signatureId) {
-        sigKeyToUse = signatureId;
-      } else {
-        sigKeyToUse = "sig1";
-      }
+      sigKeyToUse = signatureId ?? "sig1";
     }
 
     const digest = body ? generateDigest(body) : undefined;
+
     const verifyDataRes = generateVerifyData({
       httpHeaders: {
         ...httpHeaders,
@@ -131,6 +136,7 @@ export const createSignatureHeader = async (
       },
       url,
       method,
+      existingSignatureKey,
     });
     if (verifyDataRes.isErr()) {
       return err({ type: "MalformedInput", message: verifyDataRes.error });
@@ -141,6 +147,7 @@ export const createSignatureHeader = async (
       "host",
       "@method",
       "content-digest",
+      ...(existingSignatures ? ["signature"] : []),
     ]);
     if (sortedEntriesRes.isErr()) {
       return err({ type: "MalformedInput", message: sortedEntriesRes.error });
@@ -148,9 +155,19 @@ export const createSignatureHeader = async (
 
     const { value: sortedEntries } = sortedEntriesRes;
 
-    const signatureParams = generateSignatureParams({ data: sortedEntries, alg: "ecdsa-p256-sha256", keyid });
+    const signatureParams = generateSignatureParams({
+      data: sortedEntries,
+      alg: "ecdsa-p256-sha256",
+      keyid,
+      signatureId: sigKeyToUse,
+      existingSignatureInputData,
+      existingSignatureKey,
+    });
 
-    const bytesToSign = generateSignatureBytes([...sortedEntries, ["@signature-params", signatureParams]]);
+    const bytesToSign = generateSignatureBytes([
+      ...sortedEntries,
+      ["@signature-params", signatureParams.replace(`${sigKeyToUse}=`, "")],
+    ]); // discussion point - format change
     const signResult = await ResultAsync.fromPromise(sign(bytesToSign), (e) => e);
 
     if (signResult.isErr()) {
@@ -163,8 +180,8 @@ export const createSignatureHeader = async (
     const signature = base64Encode(signResult.value);
 
     return ok({
-      signature: `${existingSignatures ? signatureString + ", " : ""}${sigKeyToUse}=:${signature}:`,
-      signatureInput: `${existingSignatures ? signatureInputString + ", " : ""}${sigKeyToUse}=${signatureParams}`,
+      signature: `${existingSignatures ? existingSignatureString + ", " : ""}${sigKeyToUse}=:${signature}:`,
+      signatureInput: `${signatureParams}`,
       digest,
     });
   } catch (error) {
