@@ -5,22 +5,29 @@
  */
 
 import { err, ok, Result } from "neverthrow";
-import { equals, keys, length, map, not, pipe, toLower, uniq, toPairs, join } from "ramda";
+import { equals, keys, length, map, not, pipe, toLower, uniq } from "ramda";
+import { serializeDictionary, Item, InnerList } from "structured-headers";
 import urlParser from "url";
 
 import { VerifyData, VerifyDataEntry } from "./types";
-
-import { joinWithSpace } from "./index";
 
 export const reduceKeysToLowerCase = <T extends Record<string, unknown>>(obj: T): Record<string, T[keyof T]> =>
   Object.entries(obj).reduce((acc, [k, v]) => ({ ...acc, [k.toLowerCase()]: v }), {});
 const isObjectKeysIgnoreCaseDuplicated = (obj: Record<string, unknown>): boolean =>
   pipe(keys, map(toLower), uniq, length, equals(keys(obj).length), not)(obj);
 
+type RequiredSignatureData = {
+  readonly "@request-target": string;
+  readonly "@method": string;
+  readonly host: string;
+  key?: string;
+};
+
 type GenerateVerifyDataEntriesOptions = {
   readonly method: string;
   readonly url: string;
   readonly httpHeaders: { readonly [key: string]: string | string[] | undefined };
+  readonly existingSignatureKey?: string;
 };
 /**
  * Create an array of entries out of an object required for a signature
@@ -28,7 +35,7 @@ type GenerateVerifyDataEntriesOptions = {
  * note we return it as entries to guarantee order consistency
  */
 export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyData, string> => {
-  const { url, httpHeaders, method } = options;
+  const { url, httpHeaders, method, existingSignatureKey } = options;
   const { host, path } = urlParser.parse(url);
 
   // Checks if a header key is duplicated with a different case eg. no instances of key and kEy
@@ -40,14 +47,16 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
     return err("Cannot resolve host and path from url");
   }
 
+  const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
+
   // Custom fields required by the specification
-  const requiredSignatureData = {
+  const requiredSignatureData: RequiredSignatureData = {
     ["@request-target"]: path,
     ["@method"]: method.toUpperCase(),
     host,
+    ...("signature" in lowerCaseHttpHeaders && existingSignatureKey && { key: existingSignatureKey }), // if a signature header is included for a previous signature, its ID should be included in the covered fields labelled 'key'
   };
 
-  const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
   const dataToSign: VerifyData = {
     ...requiredSignatureData,
     ...lowerCaseHttpHeaders,
@@ -59,19 +68,26 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
 export type GenereateSignatureParamsOptions = {
   readonly data: VerifyDataEntry[];
   readonly keyid: string;
+  readonly signatureId: string;
   readonly alg: string;
+  readonly existingSignatureInputData: Map<string, Item | InnerList>;
+  readonly existingSignatureKey?: string;
 };
 export const generateSignatureParams = (options: GenereateSignatureParamsOptions): string => {
-  const { data, keyid, alg } = options;
+  const { data, keyid, alg, signatureId, existingSignatureInputData, existingSignatureKey } = options;
   const created = Math.floor(Date.now() / 1000);
-  const headersParam = pipe(
-    map(([key]: VerifyDataEntry) => `"${key}"`),
-    joinWithSpace
-  )(data);
 
-  const otherParams = pipe(
-    map(([k, v]) => `${k}=${typeof v === "number" ? v : `"${v}"`}`),
-    join(";")
-  )(toPairs({ alg, keyid, created }));
-  return `(${headersParam});${otherParams}`;
+  existingSignatureInputData.set(signatureId, [
+    data.map(([key]: VerifyDataEntry) =>
+      key == "signature" && existingSignatureKey ? [key, new Map([["key", existingSignatureKey]])] : [key, new Map()]
+    ), // covered fields
+    new Map<string, string | number>([
+      // signature params
+      ["alg", alg],
+      ["keyid", keyid],
+      ["created", created],
+    ]),
+  ]);
+
+  return serializeDictionary(existingSignatureInputData);
 };

@@ -18,6 +18,7 @@ const sortByDefault = (verifyData: VerifyData): VerifyDataEntry[] => Array.from(
  */
 const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string[]): Result<VerifyDataEntry[], string> => {
   // Avoid filtering as a side effect
+
   const iscoveredFieldsMissingKeys = pipe(all(has(__, verifyData)), not);
   if (iscoveredFieldsMissingKeys(coveredFields)) {
     return err("Covered fields list must include the exact keys within verifyData");

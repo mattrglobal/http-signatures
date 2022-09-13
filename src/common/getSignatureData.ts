@@ -24,7 +24,6 @@ type ResponseParams = SignatureInputParams & {
 };
 /**
  * Parses the values in the signature-input and signature headers
- * We aren't currently getting the expires
  */
 export const getSignatureData = (
   signatureHeaderValue: string,

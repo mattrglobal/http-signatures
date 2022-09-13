@@ -5,7 +5,7 @@
  */
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import { includes, pickBy, toLower, values } from "ramda";
+import { includes, pickBy, toLower } from "ramda";
 
 import {
   decodeBase64,
@@ -117,9 +117,6 @@ export const verifySignatureHeader = (
         return okAsync(false);
       }
       const { value: decodedSignature } = decodedSignatureRes;
-
-      // should not return!!
-      // needs to add to a list
 
       verifications.push(verify(keyid, bytesToVerify, decodedSignature));
     }
