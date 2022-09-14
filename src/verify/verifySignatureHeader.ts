@@ -6,9 +6,11 @@
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { includes, pickBy, toLower } from "ramda";
+import { serializeList } from "structured-headers";
 
 import {
   decodeBase64,
+  generateSignatureParams,
   generateSignatureBytes,
   generateSortedVerifyDataEntries,
   generateVerifyData,
@@ -81,7 +83,21 @@ export const verifySignatureHeader = (
     const signatureSet = getSignatureDataResult.value;
 
     for (const signatureId in signatureSet) {
-      const { coveredFields: coveredFields = [], keyid, signature } = signatureSet[signatureId];
+      const {
+        coveredFields: coveredFields = [],
+        keyid,
+        created,
+        alg,
+        signature,
+        expires,
+        nonce,
+      } = signatureSet[signatureId];
+
+      const currentTime = Math.floor(Date.now() / 1000);
+
+      if (expires && expires < currentTime) {
+        return okAsync(false);
+      }
 
       // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
       const isMatchingHeader = (value: unknown, key: keyof HttpHeaders): boolean =>
@@ -98,7 +114,7 @@ export const verifySignatureHeader = (
       }
       const { value: verifyData } = verifyDataRes;
 
-      const digest = verifyData["digest"];
+      const digest = verifyData["content-digest"];
       // Verify the digest if it's present
       if (digest !== undefined && !verifyDigest(digest, body)) {
         return okAsync(false);
@@ -110,7 +126,20 @@ export const verifySignatureHeader = (
       }
       const { value: sortedEntries } = sortedEntriesRes;
 
-      const bytesToVerify = generateSignatureBytes(sortedEntries);
+      const signatureParams = generateSignatureParams({
+        // TODO recreating signature base for a signature that signed over another signature requires the key
+        data: sortedEntries,
+        alg,
+        keyid,
+        created,
+        expires,
+        nonce,
+      });
+
+      const bytesToVerify = generateSignatureBytes([
+        ...sortedEntries,
+        ["@signature-params", serializeList([signatureParams])],
+      ]);
       const decodedSignatureRes = decodeBase64(signature);
 
       if (decodedSignatureRes.isErr()) {
@@ -118,11 +147,15 @@ export const verifySignatureHeader = (
       }
       const { value: decodedSignature } = decodedSignatureRes;
 
-      verifications.push(verify(keyid, bytesToVerify, decodedSignature));
+      verifications.push(verify(keyid, bytesToVerify, Buffer.from(decodedSignature)));
     }
 
     return ResultAsync.fromPromise(
-      Promise.all(verifications).then((arr) => arr.reduce((acc, val) => acc && !!val, true)),
+      Promise.all(verifications).then((arr) =>
+        arr.reduce((acc, val) => {
+          return acc && !!val;
+        }, true)
+      ),
       () => ({
         type: "VerifyFailed",
         message: "Failed to verify signature header",

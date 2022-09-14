@@ -15,7 +15,9 @@ type SignatureInputSetParams = {
 type SignatureInputParams = {
   keyid: string;
   created: number;
-  expiry?: number;
+  expires?: number;
+  alg: string;
+  nonce?: string;
   coveredFields?: string[];
 };
 
@@ -35,24 +37,24 @@ export const getSignatureData = (
   let signatureData: SignatureInputSetParams = {};
 
   for (const entry of signatureInputHeaderMap) {
-    const signatureId: string = entry[0];
+    const [signatureId, signatureFields] = entry;
+
     if (signatureId in signatureData) {
       // duplicate keys in signature-input field
       return err("Invalid signature data");
     }
 
-    const signatureFields = entry[1];
+    const [coveredFieldsList, signatureParams] = signatureFields;
 
-    const coveredFields: string[] = Object.values(signatureFields[0]).map((a) => toLower(a[0]));
-    const signatureParams = signatureFields[1];
+    const coveredFields: string[] = Object.values(coveredFieldsList).map((a) => toLower(a[0]));
 
     const keyid: string | undefined = signatureParams.get("keyid") as string;
     const created: number | undefined = signatureParams.get("created") as number;
-    // const alg: string | undefined = signatureParams.get("alg") as string;
-    // const expires: number | undefined = signatureParams.get("expires") as number;
-    // const nonce: string | undefined = signatureParams.get("nonce") as string;
+    const alg: string | undefined = signatureParams.get("alg") as string;
+    const expires: number | undefined = signatureParams.get("expires") as number;
+    const nonce: string | undefined = signatureParams.get("nonce") as string;
 
-    if (!keyid || !created || !coveredFields.length || !signatureId) {
+    if (!keyid || !created || !alg || !coveredFields.length || !signatureId) {
       return err("Signature input string is missing a required field");
     }
 
@@ -69,6 +71,9 @@ export const getSignatureData = (
       [signatureId]: {
         keyid,
         created,
+        expires,
+        alg,
+        nonce,
         coveredFields,
         signature,
       },

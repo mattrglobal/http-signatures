@@ -47,6 +47,29 @@ describe("createSignatureHeader", () => {
     });
   });
 
+  it("Should accept an optional nonce and expiry", async () => {
+    const options: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key1", sign: signECDSA },
+      expires: 1577836801,
+      nonce: "abcdefg",
+    };
+
+    const result = await createSignatureHeader(options);
+
+    if (result.isErr()) {
+      throw result.error;
+    }
+
+    expect(result.value).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig1=*.*:$/),
+      signatureInput:
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800;expires=1577836801;nonce="abcdefg"',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
+
   it("Should use a custom signature ID if one was provided", async () => {
     const signatureId = "testsig123";
     const options: CreateSignatureHeaderOptions = {
@@ -90,6 +113,40 @@ describe("createSignatureHeader", () => {
         ["HOST"]: "example.com",
         ["Content-Type"]: "application/json",
         Signature: result.value.signature,
+        "Signature-Input":
+          'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+        "Content-Digest": "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+      },
+      body: `{"hello": "world"}`,
+    };
+    const optionsTwo: CreateSignatureHeaderOptions = {
+      ...createSecondSignatureHeaderOptions,
+    };
+
+    const resultTwo = await createSignatureHeader(optionsTwo);
+
+    if (resultTwo.isErr()) {
+      throw resultTwo.error;
+    }
+
+    expect(resultTwo.value).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig1=*.*:, sig2=*.*:$/),
+      signatureInput:
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800, sig2=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key2";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
+
+  it("Should sign over a previous signature if a signature id is provided", async () => {
+    const createSecondSignatureHeaderOptions = {
+      signer: { keyid: "key2", sign: signECDSA },
+      url: "http://example.com/foo?param=value&pet=dog",
+      method: "POST",
+      httpHeaders: {
+        ["HOST"]: "example.com",
+        ["Content-Type"]: "application/json",
+        Signature: "sig1=abcde:",
         "Signature-Input":
           'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
         "Content-Digest": "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
@@ -161,6 +218,25 @@ describe("createSignatureHeader", () => {
     expect(result.error).toEqual({
       type: "MalformedInput",
       message: "Duplicate case insensitive header keys detected, specify an array of values instead",
+    });
+  });
+
+  it("Should return an error when expiry is in the past", async () => {
+    const options: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key1", sign: signECDSA },
+      expires: 1,
+    };
+
+    const result = await createSignatureHeader(options);
+
+    if (result.isOk()) {
+      throw "result is not an error";
+    }
+
+    await expect(result.error).toEqual({
+      type: "SignFailed",
+      message: "Expiry must not be in the past",
     });
   });
 
