@@ -6,7 +6,7 @@
 
 import { err, ok, Result } from "neverthrow";
 import { equals, keys, length, map, not, pipe, toLower, uniq } from "ramda";
-import { serializeDictionary, Item, InnerList } from "structured-headers";
+import { InnerList } from "structured-headers";
 import urlParser from "url";
 
 import { VerifyData, VerifyDataEntry } from "./types";
@@ -68,16 +68,16 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
 export type GenereateSignatureParamsOptions = {
   readonly data: VerifyDataEntry[];
   readonly keyid: string;
-  readonly signatureId: string;
   readonly alg: string;
-  readonly existingSignatureInputData: Map<string, Item | InnerList>;
+  readonly created: number;
+  readonly expires?: number;
+  readonly nonce?: string;
   readonly existingSignatureKey?: string;
 };
-export const generateSignatureParams = (options: GenereateSignatureParamsOptions): string => {
-  const { data, keyid, alg, signatureId, existingSignatureInputData, existingSignatureKey } = options;
-  const created = Math.floor(Date.now() / 1000);
+export const generateSignatureParams = (options: GenereateSignatureParamsOptions): InnerList => {
+  const { data, keyid, alg, existingSignatureKey, created, expires, nonce } = options;
 
-  existingSignatureInputData.set(signatureId, [
+  return [
     data.map(([key]: VerifyDataEntry) =>
       key == "signature" && existingSignatureKey ? [key, new Map([["key", existingSignatureKey]])] : [key, new Map()]
     ), // covered fields
@@ -86,8 +86,8 @@ export const generateSignatureParams = (options: GenereateSignatureParamsOptions
       ["alg", alg],
       ["keyid", keyid],
       ["created", created],
+      ...(expires ? [["expires", expires] as const] : []),
+      ...(nonce ? [["nonce", nonce] as const] : []),
     ]),
-  ]);
-
-  return serializeDictionary(existingSignatureInputData);
+  ] as InnerList;
 };

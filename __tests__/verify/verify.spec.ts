@@ -3,11 +3,11 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import * as base64 from "@stablelib/base64";
 import crypto from "crypto";
+import { err } from "neverthrow";
 
 import { verifySignatureHeader, createSignatureHeader, CreateSignatureHeaderOptions } from "../../src";
-import { reduceKeysToLowerCase } from "../../src/common";
+import * as common from "../../src/common";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
 describe("verifySignatureHeader", () => {
@@ -16,7 +16,7 @@ describe("verifySignatureHeader", () => {
   const signECDSA =
     (privateKey: crypto.KeyObject) =>
     async (data: Uint8Array): Promise<Uint8Array> => {
-      return crypto.createSign("sha256").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
+      return await crypto.createSign("SHA256").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
     };
 
   const verifyECDSA =
@@ -29,7 +29,6 @@ describe("verifySignatureHeader", () => {
     };
 
   let createSignatureResult: { digest?: string; signature: string; signatureInput: string };
-  let createSignatureResultTwo: { digest?: string; signature: string; signatureInput: string };
   let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 
   beforeEach(async () => {
@@ -37,35 +36,20 @@ describe("verifySignatureHeader", () => {
     const createOptions: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
       signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
+      expires: 10000000000,
+      nonce: "abcd",
     };
     await createSignatureHeader(createOptions).then((res) => {
       expect(res.isOk()).toBe(true);
       res.isOk() ? (createSignatureResult = res.value) : undefined;
     });
-
-    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
-    const createOptionsTwo: CreateSignatureHeaderOptions = {
-      ...createSignatureHeaderOptions,
-      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPair.privateKey) },
-      httpHeaders: {
-        ["HOST"]: "example.com",
-        ["Content-Type"]: "application/json",
-        Signature: createSignatureResult.signature,
-        ["Signature-input"]: createSignatureResult.signatureInput,
-      },
-    };
-
-    await createSignatureHeader(createOptionsTwo).then((res) => {
-      expect(res.isOk()).toBe(true);
-      res.isOk() ? (createSignatureResultTwo = res.value) : undefined;
-    });
   });
 
   it("Should verify a valid signature", async () => {
     const validHttpHeaderInput = {
-      "Content-Digest": createSignatureResult.digest,
       Signature: createSignatureResult.signature,
       "Signature-Input": createSignatureResult.signatureInput,
+      "Content-Digest": createSignatureResult.digest,
     };
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -74,11 +58,17 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
+      body: createSignatureHeaderOptions.body,
       verifier: { verify: verifyECDSA(ecdsaKeyPair.publicKey) },
     });
-    expect(result.isOk()).toBe(true);
 
-    const lowerCaseValidHttpHeaderInput = reduceKeysToLowerCase(validHttpHeaderInput);
+    if (result.isErr()) {
+      throw result.error;
+    }
+
+    expect(result.value).toEqual(true);
+
+    const lowerCaseValidHttpHeaderInput = common.reduceKeysToLowerCase(validHttpHeaderInput);
     const resultWithLowerCaseHeader = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
@@ -86,39 +76,15 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
+      body: createSignatureHeaderOptions.body,
       verifier: { verify: verifyECDSA(ecdsaKeyPair.publicKey) },
     });
-    expect(resultWithLowerCaseHeader.isOk()).toBe(true);
-  });
 
-  it("Should verify a message with multiple valid signatures", async () => {
-    const validHttpHeaderInput = {
-      "Content-Digest": createSignatureResultTwo.digest,
-      Signature: createSignatureResultTwo.signature,
-      "Signature-Input": createSignatureResultTwo.signatureInput,
-    };
-    const result = await verifySignatureHeader({
-      httpHeaders: {
-        ...createSignatureHeaderOptions.httpHeaders,
-        ...validHttpHeaderInput,
-      },
-      method: createSignatureHeaderOptions.method,
-      url: createSignatureHeaderOptions.url,
-      verifier: { verify: verifyECDSA(ecdsaKeyPair.publicKey) },
-    });
-    expect(result.isOk()).toBe(true);
+    if (resultWithLowerCaseHeader.isErr()) {
+      throw resultWithLowerCaseHeader.error;
+    }
 
-    const lowerCaseValidHttpHeaderInput = reduceKeysToLowerCase(validHttpHeaderInput);
-    const resultWithLowerCaseHeader = await verifySignatureHeader({
-      httpHeaders: {
-        ...createSignatureHeaderOptions.httpHeaders,
-        ...lowerCaseValidHttpHeaderInput,
-      },
-      method: createSignatureHeaderOptions.method,
-      url: createSignatureHeaderOptions.url,
-      verifier: { verify: verifyECDSA(ecdsaKeyPair.publicKey) },
-    });
-    expect(resultWithLowerCaseHeader.isOk()).toBe(true);
+    expect(resultWithLowerCaseHeader.value).toEqual(true);
   });
 
   it("Should return verified false when verifying a tampered signature", async () => {
@@ -157,7 +123,11 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(result.isOk()).toBe(true);
+    if (result.isErr()) {
+      throw "result is an error";
+    }
+
+    expect(result.value).toEqual(true);
   });
 
   it("Should return verified false if headers to verify do not match headers defined in the signature string", async () => {
@@ -241,10 +211,9 @@ describe("verifySignatureHeader", () => {
   );
 
   it("Should return verified false if an err is returned from decoding", async () => {
-    const mockDecode = jest.spyOn(base64, "decodeURLSafe");
-    const errorString = "error decoding";
+    const mockDecode = jest.spyOn(common, "decodeBase64");
     mockDecode.mockImplementationOnce(() => {
-      throw Error(errorString);
+      return err("Failed to decode base64 bytes");
     });
 
     const result = await verifySignatureHeader({
@@ -273,8 +242,9 @@ describe("verifySignatureHeader", () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
-        Digest: `${createSignatureResult.digest}`,
-        digest: `${createSignatureResult.digest}`,
+        "Content-Digest": createSignatureResult.digest,
+        "content-digest": createSignatureResult.digest,
+        "Signature-Input": createSignatureResult.signatureInput,
         Signature: createSignatureResult.signature,
       },
       method: createSignatureHeaderOptions.method,
@@ -289,7 +259,7 @@ describe("verifySignatureHeader", () => {
     expect(result.value).toEqual(false);
   });
 
-  it("Should return a verified false if the body has been tampered", async () => {
+  it("Should return verified false if the body has been tampered", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
@@ -309,7 +279,7 @@ describe("verifySignatureHeader", () => {
     expect(result.value).toEqual(false);
   });
 
-  it("Should return a verified false if the body is undefined but the content-digest header is not", async () => {
+  it("Should return verified false if the body is undefined but the content-digest header is not", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
@@ -328,12 +298,32 @@ describe("verifySignatureHeader", () => {
     expect(result.value).toEqual(false);
   });
 
-  it("Should return a verified false if the digest header is a string array", async () => {
+  it("Should return verified false if the content-digest header is a string array", async () => {
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        "Content-Digest": ["string", "array"],
+        "Signature-Input": createSignatureResult.signatureInput,
+        Signature: createSignatureResult.signature,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      verifier: { verify: verifyECDSA(ecdsaKeyPair.publicKey) },
+      body: createSignatureHeaderOptions.body,
+    });
+
+    if (result.isErr()) {
+      throw "result is an error";
+    }
+    expect(result.value).toEqual(false);
+  });
+
+  it("Should return verified false if the expiry date has passed", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
         "Content-Digest": createSignatureResult.digest,
-        "Signature-Input": createSignatureResult.signatureInput,
+        "Signature-Input": createSignatureResult.signatureInput.replace(/(expires=)[\d]+;/, "expires=1;"),
         Signature: createSignatureResult.signature,
       },
       method: createSignatureHeaderOptions.method,

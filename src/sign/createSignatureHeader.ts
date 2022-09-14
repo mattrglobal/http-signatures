@@ -7,7 +7,7 @@
 import { encode as base64Encode } from "@stablelib/base64";
 import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
 import { isEmpty } from "ramda";
-import { parseDictionary, Item, InnerList } from "structured-headers";
+import { parseDictionary, Item, InnerList, serializeDictionary, serializeList } from "structured-headers";
 
 import {
   generateDigest,
@@ -57,6 +57,8 @@ export type CreateSignatureHeaderOptions = {
    * If it's desired to sign over a previous signature, the key of the signature must be specified
    */
   readonly existingSignatureKey?: string;
+  readonly expires?: number; // TODO description
+  readonly nonce?: string; // TODO description
 };
 
 /**
@@ -76,12 +78,20 @@ export const createSignatureHeader = async (
       body,
       url,
       existingSignatureKey,
+      expires,
+      nonce,
     } = options;
 
     // Disallow empty headers
     // https://tools.ietf.org/html/draft-cavage-http-signatures-12#section-2.1.6
     if (isEmpty(httpHeaders)) {
       return err({ type: "MalformedInput", message: "Http headers must not be empty" });
+    }
+
+    const created = Math.floor(Date.now() / 1000);
+
+    if (expires && expires < created) {
+      return err({ type: "SignFailed", message: "Expiry must not be in the past" });
     }
 
     // determine appropriate key for new signature
@@ -98,8 +108,8 @@ export const createSignatureHeader = async (
       existingSignatures = true;
 
       try {
-        existingSignatureInputData = parseDictionary(existingSignatureInputString);
         existingSignatureData = parseDictionary(existingSignatureString);
+        existingSignatureInputData = parseDictionary(existingSignatureInputString);
       } catch {
         return err({ type: "MalformedInput", message: "Unable to parse existing signature data" });
       }
@@ -141,13 +151,14 @@ export const createSignatureHeader = async (
     if (verifyDataRes.isErr()) {
       return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
+
     const sortedEntriesRes = generateSortedVerifyDataEntries(verifyDataRes.value, [
       "@request-target",
       "content-type",
       "host",
       "@method",
       "content-digest",
-      ...(existingSignatures ? ["signature"] : []),
+      ...(existingSignatureKey ? ["signature"] : []),
     ]);
     if (sortedEntriesRes.isErr()) {
       return err({ type: "MalformedInput", message: sortedEntriesRes.error });
@@ -159,15 +170,16 @@ export const createSignatureHeader = async (
       data: sortedEntries,
       alg: "ecdsa-p256-sha256",
       keyid,
-      signatureId: sigKeyToUse,
-      existingSignatureInputData,
       existingSignatureKey,
+      created,
+      expires,
+      nonce,
     });
 
     const bytesToSign = generateSignatureBytes([
       ...sortedEntries,
-      ["@signature-params", signatureParams.replace(`${sigKeyToUse}=`, "")],
-    ]); // discussion point - format change
+      ["@signature-params", serializeList([signatureParams])],
+    ]);
     const signResult = await ResultAsync.fromPromise(sign(bytesToSign), (e) => e);
 
     if (signResult.isErr()) {
@@ -179,9 +191,11 @@ export const createSignatureHeader = async (
 
     const signature = base64Encode(signResult.value);
 
+    existingSignatureInputData.set(sigKeyToUse, signatureParams);
+
     return ok({
       signature: `${existingSignatures ? existingSignatureString + ", " : ""}${sigKeyToUse}=:${signature}:`,
-      signatureInput: `${signatureParams}`,
+      signatureInput: serializeDictionary(existingSignatureInputData),
       digest,
     });
   } catch (error) {
