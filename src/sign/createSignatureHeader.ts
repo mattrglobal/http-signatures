@@ -57,8 +57,15 @@ export type CreateSignatureHeaderOptions = {
    * If it's desired to sign over a previous signature, the key of the signature must be specified
    */
   readonly existingSignatureKey?: string;
-  readonly expires?: number; // TODO description
-  readonly nonce?: string; // TODO description
+  /**
+   * An optional expiry param as an Integer UNIX timestamp value, to indicate to the verifier a time after which this signature should no longer be trusted.
+   * Sub- second precision is not supported.
+   */
+  readonly expires?: number;
+  /**
+   * An optional unique value generated for this signature as a String value.
+   */
+  readonly nonce?: string;
 };
 
 /**

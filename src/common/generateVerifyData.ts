@@ -89,5 +89,5 @@ export const generateSignatureParams = (options: GenereateSignatureParamsOptions
       ...(expires ? [["expires", expires] as const] : []),
       ...(nonce ? [["nonce", nonce] as const] : []),
     ]),
-  ] as InnerList;
+  ];
 };

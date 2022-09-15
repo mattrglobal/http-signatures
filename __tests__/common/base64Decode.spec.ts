@@ -3,14 +3,14 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import { encodeURLSafe as encodeBase64Url } from "@stablelib/base64";
+import { encode as encodeBase64 } from "@stablelib/base64";
 
 import { decodeBase64 } from "../../src/common";
 
 describe("base64Decode", () => {
   it("Should decode valid base64", (done) => {
     const bytes = new Uint8Array(10);
-    const base64 = encodeBase64Url(bytes);
+    const base64 = encodeBase64(bytes);
     const result = decodeBase64(base64);
 
     if (result.isErr()) {

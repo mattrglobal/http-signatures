@@ -8,7 +8,7 @@ import { ok, err, Result } from "neverthrow";
 import { toLower } from "ramda";
 import { parseDictionary, Item, InnerList } from "structured-headers";
 
-type SignatureInputSetParams = {
+export type SignatureInputSetParams = {
   [signatureId: string]: ResponseParams;
 };
 
@@ -82,25 +82,3 @@ export const getSignatureData = (
 
   return ok(signatureData);
 };
-
-// export const getParamsForOneSignature = (
-//   signatureHeaderValue: string,
-//   signatureInputHeaderValue: string,
-//   signatureId: string
-// ): Result<ResponseParams, string> => {
-//   const keyidMatches: RegExpExecArray | null = /keyid="(.+?)"/.exec(signatureInputHeaderValue);
-//   const createdMatches: RegExpExecArray | null = /created=(\d+?)(,|$)/.exec(signatureInputHeaderValue);
-//   const coveredFieldsMatches: RegExpExecArray | null = /sig=\((.+?)\);/.exec(signatureInputHeaderValue);
-//   const signatureMatches: RegExpExecArray | null = /sig=:(.+?):/.exec(signatureHeaderValue);
-
-//   if (!keyidMatches || !createdMatches || !signatureMatches || !coveredFieldsMatches) {
-//     return err("Signature input string is missing a required field");
-//   }
-//   return ok(
-//     {
-//     keyid: keyidMatches[1],
-//     created: Number(createdMatches[1]),
-//     signature: signatureMatches[1],
-//     coveredFields: [coveredFieldsMatches[1].replace(/"/g, "")],
-//   });
-// }

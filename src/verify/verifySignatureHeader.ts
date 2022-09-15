@@ -46,6 +46,8 @@ export type VerifySignatureHeaderOptions = {
    * The body of the request
    */
   readonly body?: Record<string, unknown> | string;
+
+  readonly signatureKey?: string;
 };
 
 /**
@@ -63,9 +65,10 @@ export const verifySignatureHeader = (
     httpHeaders,
     url,
     body,
+    signatureKey,
   } = options;
 
-  const verifications: Promise<boolean>[] = [];
+  const verifications = [];
 
   try {
     // need to make sure signature header is in lower case
@@ -80,9 +83,18 @@ export const verifySignatureHeader = (
       return okAsync(false);
     }
 
+    if (signatureKey && !(signatureKey in getSignatureDataResult.value)) {
+      // specified key could not be found in the signature input data
+      return okAsync(false);
+    }
+
     const signatureSet = getSignatureDataResult.value;
 
     for (const signatureId in signatureSet) {
+      if (signatureKey && signatureId != signatureKey) {
+        continue;
+      }
+
       const {
         coveredFields: coveredFields = [],
         keyid,
