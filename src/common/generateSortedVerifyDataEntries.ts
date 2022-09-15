@@ -28,7 +28,7 @@ const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string[]): R
     accumulatedEntries: VerifyDataEntry[],
     currentHeader: string
   ): VerifyDataEntry[] => [...accumulatedEntries, [currentHeader, verifyData[currentHeader]]];
-  const sortEntries = pipe(reduce<string, VerifyDataEntry[]>(reduceCoveredFieldsToEntries, []));
+  const sortEntries = reduce<string, VerifyDataEntry[]>(reduceCoveredFieldsToEntries, []);
   const sortedEntries = sortEntries(coveredFields);
 
   return ok(sortedEntries);

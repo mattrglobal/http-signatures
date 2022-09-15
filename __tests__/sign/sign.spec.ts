@@ -7,29 +7,21 @@ import crypto from "crypto";
 
 import { createSignatureHeader, CreateSignatureHeaderOptions } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
+import { signECDSA } from "../__fixtures__/cryptoPrimatives";
 
-const signECDSA = async (data: Uint8Array): Promise<Uint8Array> => {
-  // TODO move up to util
-  const key = {
-    kty: "EC",
-    d: "wcHNx8kkBCcBnGY39K995TShcdOFdKtaRQLGrUELqBI",
-    crv: "P-256",
-    x: "m5dnqNXawIKF3qyCfs_raR1LtTKUtyf4t2uVa4Wmd6A",
-    y: "prF8Lo5JC2JTyj2GwtaI2LWWEaRa6v6XykjUMg-9C1U",
-    alg: "ES256",
-  };
-  const privateKey: crypto.KeyObject = crypto.createPrivateKey({ key, format: "jwk" });
-  const signature = crypto.createSign("sha256").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
-  return signature;
-};
+let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 
 describe("createSignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800000);
 
+  beforeEach(() => {
+    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+  });
+
   it("Should create a signature and a digest", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signECDSA },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
@@ -50,7 +42,7 @@ describe("createSignatureHeader", () => {
   it("Should accept an optional nonce and expiry", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signECDSA },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
       expires: 1577836801,
       nonce: "abcdefg",
     };
@@ -74,7 +66,7 @@ describe("createSignatureHeader", () => {
     const signatureId = "testsig123";
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signECDSA },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
       signatureId,
     };
 
@@ -96,7 +88,7 @@ describe("createSignatureHeader", () => {
   it("Should be able to create multiple signatures on the same message", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signECDSA },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
@@ -106,7 +98,7 @@ describe("createSignatureHeader", () => {
     }
 
     const createSecondSignatureHeaderOptions = {
-      signer: { keyid: "key2", sign: signECDSA },
+      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPair.privateKey) },
       url: "http://example.com/foo?param=value&pet=dog",
       method: "POST",
       httpHeaders: {
@@ -140,7 +132,7 @@ describe("createSignatureHeader", () => {
 
   it("Should sign over a previous signature if a signature id is provided", async () => {
     const createSecondSignatureHeaderOptions = {
-      signer: { keyid: "key2", sign: signECDSA },
+      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPair.privateKey) },
       url: "http://example.com/foo?param=value&pet=dog",
       method: "POST",
       httpHeaders: {
@@ -177,7 +169,7 @@ describe("createSignatureHeader", () => {
     const options = {
       ...createSignatureHeaderOptions,
       body: "string body",
-      signer: { keyid: "key1", sign: signECDSA },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
@@ -224,7 +216,7 @@ describe("createSignatureHeader", () => {
   it("Should return an error when expiry is in the past", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signECDSA },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
       expires: 1,
     };
 
