@@ -6,7 +6,7 @@
 
 import { ok, err, Result } from "neverthrow";
 import { toLower } from "ramda";
-import { parseDictionary, Item, InnerList } from "structured-headers";
+import { parseDictionary, Item, Parameters, InnerList } from "structured-headers";
 
 export type SignatureInputSetParams = {
   [signatureId: string]: ResponseParams;
@@ -18,7 +18,7 @@ type SignatureInputParams = {
   expires?: number;
   alg: string;
   nonce?: string;
-  coveredFields?: string[];
+  coveredFields?: [string, Parameters][];
 };
 
 type ResponseParams = SignatureInputParams & {
@@ -46,7 +46,7 @@ export const getSignatureData = (
 
     const [coveredFieldsList, signatureParams] = signatureFields;
 
-    const coveredFields: string[] = Object.values(coveredFieldsList).map((a) => toLower(a[0]));
+    const coveredFields: [string, Parameters][] = Object.values(coveredFieldsList).map((a) => [toLower(a[0]), a[1]]);
 
     const keyid: string | undefined = signatureParams.get("keyid") as string;
     const created: number | undefined = signatureParams.get("created") as number;

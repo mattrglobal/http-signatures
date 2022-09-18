@@ -4,6 +4,7 @@
  * Confidential and proprietary
  */
 import { generateVerifyData } from "../../src/common";
+import { unwrap } from "../../src/errors";
 
 describe("generateVerifyData", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
@@ -18,10 +19,7 @@ describe("generateVerifyData", () => {
   it("Should return an object containing custom spec values and headers when given valid input", (done) => {
     const result = generateVerifyData(validOptions);
 
-    if (result.isErr()) {
-      return fail(result.error);
-    }
-    expect(result.value).toMatchObject({
+    expect(unwrap(result)).toMatchObject({
       ["@request-target"]: "/test?query=1",
       ["@method"]: "GET",
       host: "www.test.com",

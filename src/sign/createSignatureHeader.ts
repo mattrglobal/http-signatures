@@ -6,7 +6,6 @@
 
 import { encode as base64Encode } from "@stablelib/base64";
 import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
-import { isEmpty } from "ramda";
 import { parseDictionary, Item, InnerList, serializeDictionary, serializeList } from "structured-headers";
 
 import {
@@ -20,6 +19,15 @@ import {
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
+//  Algorithm list as per https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#section-6.1.2
+export enum AlgorithmTypes {
+  ["rsa-pss-sha512"] = "rsa-pss-sha512",
+  ["rsa-v1_5-sha256"] = "rsa-v1_5-sha256",
+  ["hmac-sha256"] = "hmac-sha256",
+  ["ecdsa-p256-sha256"] = "ecdsa-p256-sha256",
+  ["ed25519"] = "ed25519",
+}
+
 export type CreateSignatureHeaderOptions = {
   readonly signer: {
     /**
@@ -27,7 +35,7 @@ export type CreateSignatureHeaderOptions = {
      */
     readonly keyid: string;
     /**
-     * The function for signing the data with the hs2019 algorithm
+     * The function for signing the data with the specified algorithm
      */
     readonly sign: (data: Uint8Array) => Promise<Uint8Array>;
   };
@@ -66,6 +74,10 @@ export type CreateSignatureHeaderOptions = {
    * An optional unique value generated for this signature as a String value.
    */
   readonly nonce?: string;
+  /**
+   * The HTTP message signature algorithm from the HTTP Message Signature Algorithm Registry, as a String value.
+   */
+  readonly alg: AlgorithmTypes;
 };
 
 /**
@@ -87,13 +99,8 @@ export const createSignatureHeader = async (
       existingSignatureKey,
       expires,
       nonce,
+      alg,
     } = options;
-
-    // Disallow empty headers
-    // https://tools.ietf.org/html/draft-cavage-http-signatures-12#section-2.1.6
-    if (isEmpty(httpHeaders)) {
-      return err({ type: "MalformedInput", message: "Http headers must not be empty" });
-    }
 
     const created = Math.floor(Date.now() / 1000);
 
@@ -164,7 +171,7 @@ export const createSignatureHeader = async (
       "content-type",
       "host",
       "@method",
-      "content-digest",
+      ...(digest ? ["content-digest"] : []),
       ...(existingSignatureKey ? ["signature"] : []),
     ]);
     if (sortedEntriesRes.isErr()) {
@@ -175,7 +182,7 @@ export const createSignatureHeader = async (
 
     const signatureParams = generateSignatureParams({
       data: sortedEntries,
-      alg: "ecdsa-p256-sha256",
+      alg,
       keyid,
       existingSignatureKey,
       created,

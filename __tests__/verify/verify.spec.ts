@@ -8,6 +8,7 @@ import { err } from "neverthrow";
 
 import { verifySignatureHeader, createSignatureHeader, CreateSignatureHeaderOptions } from "../../src";
 import * as common from "../../src/common";
+import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 import { signECDSA, verifyECDSA } from "../__fixtures__/cryptoPrimatives";
 
@@ -68,11 +69,7 @@ describe("verifySignatureHeader", () => {
       verifier: { verify: verifyECDSA(keyMap) },
     });
 
-    if (result.isErr()) {
-      throw result.error;
-    }
-
-    expect(result.value).toEqual(true);
+    expect(unwrap(result)).toEqual(true);
 
     const lowerCaseValidHttpHeaderInput = common.reduceKeysToLowerCase(validHttpHeaderInput);
     const resultWithLowerCaseHeader = await verifySignatureHeader({
@@ -86,11 +83,7 @@ describe("verifySignatureHeader", () => {
       verifier: { verify: verifyECDSA(keyMap) },
     });
 
-    if (resultWithLowerCaseHeader.isErr()) {
-      throw resultWithLowerCaseHeader.error;
-    }
-
-    expect(resultWithLowerCaseHeader.value).toEqual(true);
+    expect(unwrap(resultWithLowerCaseHeader)).toEqual(true);
   });
 
   it("Should verify just one signature when a specific key is given", async () => {
@@ -111,10 +104,7 @@ describe("verifySignatureHeader", () => {
       signatureKey: "sig2",
     });
 
-    if (result.isErr()) {
-      throw result.error;
-    }
-    expect(result.value).toEqual(true);
+    expect(unwrap(result)).toEqual(true);
   });
 
   it("Should return verified false when a key is specified but not present in the signature", async () => {
@@ -135,10 +125,7 @@ describe("verifySignatureHeader", () => {
       signatureKey: "abcdefg",
     });
 
-    if (result.isErr()) {
-      throw result.error;
-    }
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should verify multiple valid signatures", async () => {
@@ -158,10 +145,41 @@ describe("verifySignatureHeader", () => {
       verifier: { verify: verifyECDSA(keyMap) },
     });
 
-    if (result.isErr()) {
-      throw result.error;
+    expect(unwrap(result)).toEqual(true);
+  });
+
+  it("Should verify signatures that are signed over other signatures", async () => {
+    const signatureOverAnotherSignatureOptions: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Signature: createSignatureResult.signature,
+        ["Signature-Input"]: createSignatureResult.signatureInput,
+      },
+      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPairTwo.privateKey) },
+      existingSignatureKey: "sig1",
+    };
+
+    const signatureOverAnotherSignatureResult = await createSignatureHeader(signatureOverAnotherSignatureOptions);
+
+    if (signatureOverAnotherSignatureResult.isErr()) {
+      throw signatureOverAnotherSignatureResult.error;
     }
-    expect(result.value).toEqual(true);
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Signature: signatureOverAnotherSignatureResult.value.signature,
+        "Signature-Input": signatureOverAnotherSignatureResult.value.signatureInput,
+        "Content-Digest": signatureOverAnotherSignatureResult.value.digest,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      body: createSignatureHeaderOptions.body,
+      verifier: { verify: verifyECDSA(keyMap) },
+    });
+
+    expect(unwrap(result)).toEqual(true);
   });
 
   it("Should return verified false when verifying a tampered signature", async () => {
@@ -178,11 +196,7 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should ignore headers not included in a signature string headers", async () => {
@@ -200,11 +214,7 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-
-    expect(result.value).toEqual(true);
+    expect(unwrap(result)).toEqual(true);
   });
 
   it("Should return verified false if headers to verify do not match headers defined in the signature string", async () => {
@@ -220,11 +230,7 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should return verified false if signature header is not a string", async () => {
@@ -235,11 +241,7 @@ describe("verifySignatureHeader", () => {
       verifier: { verify: verifyECDSA(keyMap) },
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   test.each([
@@ -306,11 +308,7 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should return verified false if included http headers contain duplicate case insensitive headers", async () => {
@@ -330,10 +328,7 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should return verified false if the body has been tampered", async () => {
@@ -350,10 +345,7 @@ describe("verifySignatureHeader", () => {
       body: { tampered: "body" },
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should return verified false if the body is undefined but the content-digest header is not", async () => {
@@ -369,10 +361,7 @@ describe("verifySignatureHeader", () => {
       verifier: { verify: verifyECDSA(keyMap) },
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should return verified false if the content-digest header is a string array", async () => {
@@ -389,10 +378,7 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should return verified false if the expiry date has passed", async () => {
@@ -409,10 +395,7 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    if (result.isErr()) {
-      throw "result is an error";
-    }
-    expect(result.value).toEqual(false);
+    expect(unwrap(result)).toEqual(false);
   });
 
   it("Should return a handled error if an error is thrown in the verify function", async () => {
