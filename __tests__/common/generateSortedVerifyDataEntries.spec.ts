@@ -5,16 +5,14 @@
  */
 
 import { generateSortedVerifyDataEntries } from "../../src/common";
+import { unwrap } from "../../src/errors";
 import { verifyData } from "../__fixtures__/verifyData";
 
 describe("generateSortedVerifyDataEntries", () => {
   it("Should sort data according to coveredfields order", (done) => {
     const coveredFields = ["@method", "@request-target", "host"];
     const result = generateSortedVerifyDataEntries(verifyData, coveredFields);
-    if (result.isErr()) {
-      return done("result was not ok");
-    }
-    expect(result.value).toEqual([
+    expect(unwrap(result)).toEqual([
       ["@method", "POST"],
       ["@request-target", "request target"],
       ["host", "host"],
@@ -24,10 +22,7 @@ describe("generateSortedVerifyDataEntries", () => {
 
   it("Should sort with a default if no covered fields list is specified", (done) => {
     const result = generateSortedVerifyDataEntries(verifyData);
-    if (result.isErr()) {
-      return done("result was not ok");
-    }
-    expect(result.value).toEqual([
+    expect(unwrap(result)).toEqual([
       ["@method", "POST"],
       ["@request-target", "request target"],
       ["host", "host"],

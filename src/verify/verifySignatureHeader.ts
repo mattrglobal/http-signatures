@@ -6,7 +6,7 @@
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { includes, pickBy, toLower } from "ramda";
-import { serializeList } from "structured-headers";
+import { parseDictionary, serializeList, serializeDictionary } from "structured-headers";
 
 import {
   decodeBase64,
@@ -46,7 +46,9 @@ export type VerifySignatureHeaderOptions = {
    * The body of the request
    */
   readonly body?: Record<string, unknown> | string;
-
+  /**
+   * Optional field to identify a single signature that should be verified from the signature header. If omitted, this function will attempt to verify all signatures present.
+   */
   readonly signatureKey?: string;
 };
 
@@ -106,6 +108,7 @@ export const verifySignatureHeader = (
       } = signatureSet[signatureId];
 
       const currentTime = Math.floor(Date.now() / 1000);
+      const coveredFieldNames = coveredFields.map((item) => item[0]);
 
       if (expires && expires < currentTime) {
         return okAsync(false);
@@ -113,8 +116,22 @@ export const verifySignatureHeader = (
 
       // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
       const isMatchingHeader = (value: unknown, key: keyof HttpHeaders): boolean =>
-        includes(toLower(`${key}`), coveredFields);
-      const httpHeadersToVerify = pickBy<HttpHeaders, HttpHeaders>(isMatchingHeader, httpHeaders);
+        includes(toLower(`${key}`), coveredFieldNames);
+      let httpHeadersToVerify = pickBy<HttpHeaders, HttpHeaders>(isMatchingHeader, httpHeaders);
+
+      const existingSignatureItem = coveredFields.find((item) => item[0] == "signature");
+      const existingSignatureKey = existingSignatureItem ? (existingSignatureItem[1].get("key") as string) : undefined;
+
+      // if signature to be verified signed over another signature, reconstruct the signature header
+      // to match what it would have been when the signature was created
+      if (existingSignatureItem && existingSignatureKey) {
+        const existingSignatures = httpHeadersToVerify.Signature;
+        if (typeof existingSignatures == "string") {
+          const existingSignaturesMap = parseDictionary(existingSignatures);
+          const filteredMap = new Map([...existingSignaturesMap].filter(([k]) => k == existingSignatureKey));
+          httpHeadersToVerify = { ...httpHeadersToVerify, Signature: serializeDictionary(filteredMap) };
+        }
+      }
 
       const verifyDataRes = generateVerifyData({
         method,
@@ -132,20 +149,20 @@ export const verifySignatureHeader = (
         return okAsync(false);
       }
 
-      const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFields);
+      const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFieldNames);
       if (sortedEntriesRes.isErr()) {
         return okAsync(false);
       }
       const { value: sortedEntries } = sortedEntriesRes;
 
       const signatureParams = generateSignatureParams({
-        // TODO recreating signature base for a signature that signed over another signature requires the key
         data: sortedEntries,
         alg,
         keyid,
         created,
         expires,
         nonce,
+        ...(existingSignatureItem ? { existingSignatureKey } : {}),
       });
 
       const bytesToVerify = generateSignatureBytes([

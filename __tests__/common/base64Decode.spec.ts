@@ -6,6 +6,7 @@
 import { encode as encodeBase64 } from "@stablelib/base64";
 
 import { decodeBase64 } from "../../src/common";
+import { unwrap } from "../../src/errors";
 
 describe("base64Decode", () => {
   it("Should decode valid base64", (done) => {
@@ -13,11 +14,7 @@ describe("base64Decode", () => {
     const base64 = encodeBase64(bytes);
     const result = decodeBase64(base64);
 
-    if (result.isErr()) {
-      return done.fail(result.error);
-    }
-
-    expect(result.value).toEqual(bytes);
+    expect(unwrap(result)).toEqual(bytes);
     done();
   });
 
