@@ -21,12 +21,6 @@ jobs:
       - run: yarn build
       - run: yarn test
 
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@de2e56b42aa84d0b1c5b622644ac17e505c9a049 # pin@v1.6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # use github provided token
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
       - name: Publish unstable
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
