@@ -10,7 +10,7 @@ import { verifySignatureHeader, createSignatureHeader, CreateSignatureHeaderOpti
 import * as common from "../../src/common";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
-import { signECDSA, verifyECDSA } from "../../src/sign/cryptoPrimatives";
+import { signECDSA, verifyECDSA } from "../../src/common/cryptoPrimatives";
 
 describe("verifySignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
