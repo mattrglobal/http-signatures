@@ -11,15 +11,30 @@ describe("verifySignatureHeader", () => {
   let port: number;
 
   type Response = {
+    headers: Record<string, unknown>;
     statusCode: number | undefined;
+    body: unknown;
   };
   const request = (options: http.RequestOptions): Promise<Response> => {
     return new Promise<Response>((resolve, reject) => {
       const req = http.request(options, (res) => {
-        resolve({
-          statusCode: res.statusCode,
+        // NOTE: This is an example of collecting response body, useful when testing
+        //       signature verification
+        const chunks: unknown[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          resolve({
+            headers: res.headers,
+            statusCode: res.statusCode,
+            body: JSON.parse(chunks.join("")),
+          });
         });
       });
+
+      // TODO generate http signature, this is fake value
+      const signature = JSON.stringify(req.getHeaders());
+      req.setHeader("signature-params", signature);
+
       req.on("error", (error) => reject(error));
       req.end();
     });
@@ -28,11 +43,14 @@ describe("verifySignatureHeader", () => {
   beforeAll(async () => {
     server = http.createServer((req, res) => {
       if (req.url === "/test") {
+        const data = {
+          headers: req.headers,
+        };
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ data: "Hello World!" }));
+        res.end(JSON.stringify(data));
       } else {
         res.writeHead(404, { "Content-Type": "text/plain" });
-        res.end("Not Found");
+        res.end(JSON.stringify({ error: "Not Found" }));
       }
     });
 
@@ -62,6 +80,12 @@ describe("verifySignatureHeader", () => {
       method: "GET",
     });
     expect(res.statusCode).toBe(200);
+    expect(res.headers).toEqual({
+      connection: "close",
+      date: expect.any(String),
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
+    });
   });
 
   it("should respond 404 Not Found", async () => {
