@@ -2,7 +2,8 @@
  * Copyright 2019 - MATTR Limited
  * All rights reserved
  * Confidential and proprietary
- */ import crypto from "crypto";
+ */
+import crypto from "crypto";
 
 export const signECDSA =
   (privateKey: crypto.KeyObject) =>

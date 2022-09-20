@@ -5,13 +5,63 @@
  */
 import crypto from "crypto";
 
+import http from "http";
 import { unwrap } from "../../src/errors";
-import { createSignatureHeader, CreateSignatureHeaderOptions, AlgorithmTypes } from "../../src/sign";
+import { createSignatureHeader, CreateSignatureHeaderOptions, signRequest, AlgorithmTypes } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
-import { signECDSA } from "../__fixtures__/cryptoPrimatives";
+import { signECDSA } from "../../src/sign/cryptoPrimatives";
 
 let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ecdsaKeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+
+describe("signRequest", () => {
+  let server: http.Server;
+  let path: string;
+
+  beforeEach(() => {
+    server = http.createServer(function (req, res) {
+      res.writeHead(200);
+      res.end();
+    });
+    path = "/tmp/hudsontest4"; // TODO
+    server.listen(path);
+    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ecdsaKeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+  });
+
+  it("Should sign a request", async () => {
+    const request = http.request({
+      socketPath: path,
+      method: "GET",
+      headers: {
+        "Content-Type": "text/plain",
+      },
+    });
+
+    request.on("error", function (err) {
+      console.log(err);
+    });
+
+    request.on("response", function (response) {
+      server.close();
+    });
+
+    const result = await signRequest({
+      alg: AlgorithmTypes["ecdsa-p256-sha256"],
+      key: ecdsaKeyPair.privateKey,
+      keyid: "key1",
+      request,
+    });
+
+    request.end();
+
+    expect(unwrap(result).getHeaders()).toMatchObject({
+      signature: expect.stringMatching(/^sig1=*.*:$/),
+      "signature-input":
+        'sig1=("@request-target" "content-type" "host" "@method");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+    });
+  });
+});
 
 describe("createSignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800000);
