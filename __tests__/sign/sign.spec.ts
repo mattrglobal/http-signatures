@@ -6,30 +6,36 @@
 import crypto from "crypto";
 
 import http from "http";
+import { generateKeyPairFromSeed, KeyPair } from "@stablelib/ed25519";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeader, CreateSignatureHeaderOptions, signRequest, AlgorithmTypes } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
-import { signECDSA } from "../../src/sign/cryptoPrimatives";
+import { signECDSA } from "../../src/common/cryptoPrimatives";
 
 let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ecdsaKeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let ed25519KeyPair: KeyPair;
 
 describe("signRequest", () => {
   let server: http.Server;
   let path: string;
 
-  beforeEach(() => {
+  beforeAll(() => {
     server = http.createServer(function (req, res) {
       res.writeHead(200);
       res.end();
     });
-    path = "/tmp/hudsontest4"; // TODO
+    path = "/tmp/hudsontest6"; // TODO
     server.listen(path);
-    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
-    ecdsaKeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
   });
 
-  it("Should sign a request", async () => {
+  beforeEach(() => {
+    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ecdsaKeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ed25519KeyPair = generateKeyPairFromSeed(new Uint8Array(32));
+  });
+
+  it("Should sign a request with ecdsa alg", async () => {
     const request = http.request({
       socketPath: path,
       method: "GET",
@@ -40,10 +46,6 @@ describe("signRequest", () => {
 
     request.on("error", function (err) {
       console.log(err);
-    });
-
-    request.on("response", function (response) {
-      server.close();
     });
 
     const result = await signRequest({
@@ -59,6 +61,35 @@ describe("signRequest", () => {
       signature: expect.stringMatching(/^sig1=*.*:$/),
       "signature-input":
         'sig1=("@request-target" "content-type" "host" "@method");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+    });
+  });
+
+  it("Should sign a request with ed25519 alg", async () => {
+    const request = http.request({
+      socketPath: path,
+      method: "GET",
+      headers: {
+        "Content-Type": "text/plain",
+      },
+    });
+
+    request.on("response", function (response) {
+      server.close();
+    });
+
+    const result = await signRequest({
+      alg: AlgorithmTypes.ed25519,
+      key: ed25519KeyPair.secretKey,
+      keyid: "key2",
+      request,
+    });
+
+    request.end();
+
+    expect(unwrap(result).getHeaders()).toMatchObject({
+      signature: expect.stringMatching(/^sig1=*.*:$/),
+      "signature-input":
+        'sig1=("@request-target" "content-type" "host" "@method");alg="ed25519";keyid="key2";created=1577836800',
     });
   });
 });
