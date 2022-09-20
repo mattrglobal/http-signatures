@@ -4,42 +4,47 @@
  * Confidential and proprietary
  */
 import http from "http";
-import express from "express";
-import axios from "axios";
 
 describe("verifySignatureHeader", () => {
   let server: http.Server;
-  let hostname: string;
+  let host: string;
   let port: number;
 
-  const app = express();
-  app.use("/test", (req, res) => {
-    const request = {
-      url: req.url,
-      path: req.path,
-      method: req.method,
-      params: req.params,
-      headers: req.headers,
-      httpVersion: req.httpVersion,
-    };
-
-    try {
-      res.send({ request });
-    } catch (error) {
-      res.send({ request, error });
-    }
-  });
+  type Response = {
+    statusCode: number | undefined;
+  };
+  const request = (options: http.RequestOptions): Promise<Response> => {
+    return new Promise<Response>((resolve, reject) => {
+      const req = http.request(options, (res) => {
+        resolve({
+          statusCode: res.statusCode,
+        });
+      });
+      req.on("error", (error) => reject(error));
+      req.end();
+    });
+  };
 
   beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      if (req.url === "/test") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ data: "Hello World!" }));
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not Found");
+      }
+    });
+
     await new Promise<void>((resolve) => {
-      server = app.listen(() => resolve());
+      server.listen(() => resolve());
     });
 
     const address = server.address();
     if (typeof address !== "object") {
       throw new Error("Unexpected server address");
     }
-    hostname = "127.0.0.1";
+    host = "127.0.0.1";
     port = address?.port!;
   });
 
@@ -49,14 +54,23 @@ describe("verifySignatureHeader", () => {
     });
   });
 
-  it("should pass", async () => {
-    const resp = await axios.request({
-      url: `http://${hostname}:${port}/test`,
+  it("should respond 200 OK", async () => {
+    const res = await request({
+      host,
+      port,
+      path: "/test",
       method: "GET",
-      headers: {
-        "Content-Type": "text/plain",
-      },
     });
-    console.info("--- resp", resp.data);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("should respond 404 Not Found", async () => {
+    const res = await request({
+      host,
+      port,
+      path: "/",
+      method: "GET",
+    });
+    expect(res.statusCode).toBe(404);
   });
 });
