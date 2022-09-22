@@ -4,6 +4,7 @@
  * Confidential and proprietary
  */
 import { generateVerifyData } from "../../src/common";
+import { unwrap } from "../../src/errors";
 
 describe("generateVerifyData", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
@@ -18,15 +19,12 @@ describe("generateVerifyData", () => {
   it("Should return an object containing custom spec values and headers when given valid input", (done) => {
     const result = generateVerifyData(validOptions);
 
-    if (result.isErr()) {
-      return done.fail(result.error);
-    }
-    expect(result.value).toMatchObject({
-      ["(created)"]: "1577836800",
-      ["(request-target)"]: "get /test?query=1",
-      header2: "value",
-      header1: "value",
+    expect(unwrap(result)).toMatchObject({
+      ["@request-target"]: "/test?query=1",
+      ["@method"]: "GET",
       host: "www.test.com",
+      header1: "value",
+      header2: "value",
     });
     done();
   });
@@ -38,26 +36,10 @@ describe("generateVerifyData", () => {
     };
     const result = generateVerifyData(options);
     if (result.isOk()) {
-      return done.fail("result is not an error");
+      return done("result is not an error");
     }
 
     expect(result.error).toEqual("Duplicate case insensitive header keys detected, specify an array of values instead");
-    done();
-  });
-
-  it("Should return an error when created date is in the future", (done) => {
-    const options = {
-      ...validOptions,
-      created: Date.now() + Date.now(),
-    };
-
-    const result = generateVerifyData(options);
-
-    if (result.isOk()) {
-      return done.fail("result is not an error");
-    }
-
-    expect(result.error).toEqual("Created date cannot be in the future");
     done();
   });
 
@@ -70,7 +52,7 @@ describe("generateVerifyData", () => {
     const result = generateVerifyData(options);
 
     if (result.isOk()) {
-      return done.fail("result is not an error");
+      return done("result is not an error");
     }
 
     expect(result.error).toEqual("Cannot resolve host and path from url");

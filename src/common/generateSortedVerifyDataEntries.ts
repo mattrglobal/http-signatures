@@ -9,28 +9,27 @@ import { __, all, has, not, pipe, reduce, toPairs } from "ramda";
 
 import { VerifyData, VerifyDataEntry } from "./types";
 
-import { splitWithSpace } from "./index";
-
 const sortByDefault = (verifyData: VerifyData): VerifyDataEntry[] => Array.from(toPairs(verifyData)).sort();
 
 /**
  * Sorts verifiedDataEntries into the order the header string defines
  * @param verifyData the entries of verify object which require sorting
- * @param headers the headers string from the signature defining headers separated by a space
+ * @param coveredFields the covered fields list from the signature-input header
  */
-const sortByHeaders = (verifyData: VerifyData, headers: string): Result<VerifyDataEntry[], string> => {
+const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string[]): Result<VerifyDataEntry[], string> => {
   // Avoid filtering as a side effect
-  const isHeadersMissingKeys = pipe(splitWithSpace, all(has(__, verifyData)), not);
-  if (isHeadersMissingKeys(headers)) {
-    return err("Header string must include the exact keys within verifyData");
+
+  const iscoveredFieldsMissingKeys = pipe(all(has(__, verifyData)), not);
+  if (iscoveredFieldsMissingKeys(coveredFields)) {
+    return err("Covered fields list must include the exact keys within verifyData");
   }
 
-  const reduceHeadersToEntries = (accumulatedEntries: VerifyDataEntry[], currentHeader: string): VerifyDataEntry[] => [
-    ...accumulatedEntries,
-    [currentHeader, verifyData[currentHeader]],
-  ];
-  const sortEntries = pipe(splitWithSpace, reduce<string, VerifyDataEntry[]>(reduceHeadersToEntries, []));
-  const sortedEntries = sortEntries(headers);
+  const reduceCoveredFieldsToEntries = (
+    accumulatedEntries: VerifyDataEntry[],
+    currentHeader: string
+  ): VerifyDataEntry[] => [...accumulatedEntries, [currentHeader, verifyData[currentHeader]]];
+  const sortEntries = reduce<string, VerifyDataEntry[]>(reduceCoveredFieldsToEntries, []);
+  const sortedEntries = sortEntries(coveredFields);
 
   return ok(sortedEntries);
 };
@@ -41,5 +40,6 @@ const sortByHeaders = (verifyData: VerifyData, headers: string): Result<VerifyDa
  */
 export const generateSortedVerifyDataEntries = (
   verifyData: VerifyData,
-  headers?: string
-): Result<VerifyDataEntry[], string> => (headers ? sortByHeaders(verifyData, headers) : ok(sortByDefault(verifyData)));
+  coveredFields?: string[]
+): Result<VerifyDataEntry[], string> =>
+  coveredFields ? sortByCoveredFields(verifyData, coveredFields) : ok(sortByDefault(verifyData));

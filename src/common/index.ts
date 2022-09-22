@@ -4,7 +4,7 @@
  * Confidential and proprietary
  */
 
-import { decodeURLSafe } from "@stablelib/base64";
+import { decode as base64Decode } from "@stablelib/base64";
 import { Buffer } from "buffer";
 import { err, ok, Result } from "neverthrow";
 import { join, pipe, split } from "ramda";
@@ -15,9 +15,9 @@ export const splitWithSpace = split(" ");
 export const joinWithSpace = join(" ");
 export const stringToBytes = (str: string): Uint8Array => Uint8Array.from(Buffer.from(str, "utf-8"));
 
-export const decodeBase64Url = (bytes: string): Result<Uint8Array, string> => {
+export const decodeBase64 = (bytes: string): Result<Uint8Array, string> => {
   try {
-    return ok(decodeURLSafe(bytes));
+    return ok(base64Decode(bytes));
   } catch (error) {
     return err("Failed to decode base64 bytes");
   }
@@ -27,16 +27,23 @@ export const decodeBase64Url = (bytes: string): Result<Uint8Array, string> => {
  * We need to use entries so we can guarantee the order of the keys when iterated on
  * @see https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-12#section-2.3
  */
-const generateSignatureStringFromEntries = (entries: VerifyDataEntry[]): string =>
+const generateSignatureBase = (entries: VerifyDataEntry[]): string =>
   entries
     .map(([key, value]) => {
       const processedValue = Array.isArray(value) ? value.join(", ").trim() : value?.trim();
-      return `${key}: ${processedValue}`;
+      return `"${key}": ${processedValue}`;
     })
     .join("\n");
-export const generateSignatureBytes = pipe(generateSignatureStringFromEntries, stringToBytes);
+export const generateSignatureBytes = pipe(
+  generateSignatureBase,
+  (v) => {
+    return v;
+  },
+  stringToBytes
+);
 
 export * from "./generateDigest";
 export * from "./generateVerifyData";
+export * from "./getSignatureData";
 export * from "./generateSortedVerifyDataEntries";
 export * from "./types";

@@ -3,90 +3,168 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import { generateKeyPairFromSeed, sign } from "@stablelib/ed25519";
+import crypto from "crypto";
 
-import { createSignatureHeader, CreateSignatureHeaderOptions } from "../../src/sign";
+import { unwrap } from "../../src/errors";
+import { createSignatureHeader, CreateSignatureHeaderOptions, AlgorithmTypes } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
+import { signECDSA } from "../__fixtures__/cryptoPrimatives";
+
+let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let ecdsaKeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 
 describe("createSignatureHeader", () => {
-  Date.now = jest.fn(() => 1577836800); //01.01.2020
+  Date.now = jest.fn(() => 1577836800000);
+
+  beforeEach(() => {
+    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ecdsaKeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+  });
 
   it("Should create a signature and a digest", async () => {
-    const seed = generateKeyPairFromSeed(new Uint8Array(32));
-    const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyId: "key1", sign: signEd25519 },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
 
-    if (result.isErr()) {
-      throw result.error;
-    }
-    expect(result.value).toMatchObject({
-      digest: "SHA-256=wnRdPgQ-BTyxU5jDYMTAg3GXadmb7etzdN5ymvsJ8WQ=",
-      signature:
-        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) arrvalue content-type digest host undefinedvalue x-custom-header",signature="1rRYstzVwCxmTbuF-lzKRxR1V8eImf3lRdjFqv7olV9wxgkpQ4Z8w-B7YHDSl5Qk_NgrjLgZbhriQiiDetXzAA=="',
+    expect(unwrap(result)).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig1=*.*:$/),
+      signatureInput:
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
     });
   });
 
-  it("Should create the same signature with different order http headers", async () => {
-    const seed = generateKeyPairFromSeed(new Uint8Array(32));
-    const signEd25519 = async (data: Uint8Array): Promise<Uint8Array> => await sign(seed.secretKey, data);
-    const options1: CreateSignatureHeaderOptions = {
+  it("Should accept an optional nonce, expiry and context", async () => {
+    const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      body: undefined,
-      httpHeaders: { three: "3", two: "two", one: "one" },
-      signer: { keyId: "key1", sign: signEd25519 },
-    };
-    const options2: CreateSignatureHeaderOptions = {
-      ...createSignatureHeaderOptions,
-      body: undefined,
-      httpHeaders: { one: "one", two: "two", three: "3" },
-      signer: { keyId: "key1", sign: signEd25519 },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
+      expires: 1577836801,
+      nonce: "abcdefg",
+      context: "application specific context",
     };
 
-    const result1 = await createSignatureHeader(options1);
-    const result2 = await createSignatureHeader(options2);
+    const result = await createSignatureHeader(options);
 
-    if (result1.isErr() || result2.isErr()) {
-      throw "result is an error";
-    }
+    expect(unwrap(result)).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig1=*.*:$/),
+      signatureInput:
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800;expires=1577836801;nonce="abcdefg";context="application specific context"',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
 
-    expect(result1.value).toStrictEqual(result2.value);
+  it("Should use a custom signature ID if one was provided", async () => {
+    const signatureId = "testsig123";
+    const options: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
+      signatureId,
+    };
+
+    const result = await createSignatureHeader(options);
+
+    expect(unwrap(result)).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^testsig123=*.*:$/),
+      signatureInput:
+        'testsig123=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
+
+  it("Should be able to create multiple signatures on the same message", async () => {
+    const options: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
+    };
+
+    const result = await createSignatureHeader(options);
+
+    const resultValue = unwrap(result);
+
+    const optionsTwo: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        signature: resultValue.signature,
+        "Signature-Input": resultValue.signatureInput,
+      },
+      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPairTwo.privateKey) },
+    };
+
+    const resultTwo = await createSignatureHeader(optionsTwo);
+
+    expect(unwrap(resultTwo)).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig1=*.*:, sig2=*.*:$/),
+      signatureInput:
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800, sig2=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key2";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
+
+  it("Should sign over a previous signature if a signature id is provided", async () => {
+    const optionsTwo: CreateSignatureHeaderOptions = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPairTwo.privateKey) },
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        Signature: "sig1=abcde:",
+        "Signature-Input":
+          'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+      },
+      existingSignatureKey: "sig1",
+    };
+
+    const resultTwo = await createSignatureHeader(optionsTwo);
+
+    expect(unwrap(resultTwo)).toEqual({
+      // we can't compare the signature directly as ECDSA is not deterministic
+      signature: expect.stringMatching(/^sig1=*.*:, sig2=*.*:$/),
+      signatureInput:
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800, sig2=("@request-target" "content-type" "host" "@method" "content-digest" "signature";key="sig1");alg="ecdsa-p256-sha256";keyid="key2";created=1577836800',
+      digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
   });
 
   it("Should handle a string body", async () => {
-    const sign = (): Promise<Uint8Array> => Promise.resolve(Uint8Array.from([1]));
     const options = {
       ...createSignatureHeaderOptions,
       body: "string body",
-      signer: { keyId: "key1", sign: sign },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
-    if (result.isErr()) {
-      throw result.error;
-    }
 
-    expect(result.value).toMatchObject({
-      digest: "SHA-256=qoxd-emcQclK6Mp84PxOeUumOdjbx-mSW_pxhEXlcno=",
-      signature:
-        'keyId="key1",algorithm="hs2019",created=1577837,headers="(created) (request-target) arrvalue content-type digest host undefinedvalue x-custom-header",signature="AQ=="',
+    expect(unwrap(result)).toMatchObject({
+      digest: "sha-256=:qoxd-emcQclK6Mp84PxOeUumOdjbx-mSW_pxhEXlcno=:",
+      signatureInput: `sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800`,
     });
   });
 
-  it("Should return an err if headers is empty", async () => {
-    const result = await createSignatureHeader({
-      ...createSignatureHeaderOptions,
-      httpHeaders: {},
-    });
+  it("Should handle an empty body", async () => {
+    const options = {
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
+      url: "http://example.com/foo?param=value&pet=dog",
+      alg: AlgorithmTypes["ecdsa-p256-sha256"],
+      method: "POST",
+      httpHeaders: {
+        ["HOST"]: "example.com",
+        ["Content-Type"]: "application/json",
+      },
+    };
 
-    if (result.isOk()) {
-      throw "result is not an error";
-    }
-    expect(result.error).toEqual({ type: "MalformedInput", message: "Http headers must not be empty" });
+    const result = await createSignatureHeader(options);
+
+    expect(unwrap(result)).toMatchObject({
+      digest: undefined,
+      signatureInput: `sig1=("@request-target" "content-type" "host" "@method");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800`,
+    });
   });
 
   it("Should return an error if headers contains a duplicate case insensitive entry", async () => {
@@ -107,12 +185,11 @@ describe("createSignatureHeader", () => {
     });
   });
 
-  it("Should return an error if sign throws", async () => {
-    const error = Error("unexpected error");
-    const badSign = (): Promise<Uint8Array> => Promise.reject(error);
-    const options = {
+  it("Should return an error when expiry is in the past", async () => {
+    const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyId: "key1", sign: badSign },
+      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
+      expires: 1,
     };
 
     const result = await createSignatureHeader(options);
@@ -123,7 +200,27 @@ describe("createSignatureHeader", () => {
 
     await expect(result.error).toEqual({
       type: "SignFailed",
-      message: "Failed to sign signature header",
+      message: "Expiry must not be in the past",
+    });
+  });
+
+  it("Should return an error if sign throws", async () => {
+    const error = Error("unexpected error");
+    const badSign = (): Promise<Uint8Array> => Promise.reject(error);
+    const options = {
+      ...createSignatureHeaderOptions,
+      signer: { keyid: "key1", sign: badSign },
+    };
+
+    const result = await createSignatureHeader(options);
+
+    if (result.isOk()) {
+      throw "result is not an error";
+    }
+
+    await expect(result.error).toEqual({
+      type: "SignFailed",
+      message: "unexpected error",
     });
   });
 
@@ -135,7 +232,7 @@ describe("createSignatureHeader", () => {
 
     const options = {
       ...createSignatureHeaderOptions,
-      signer: { keyId: "key1", sign: badSign },
+      signer: { keyid: "key1", sign: badSign },
     };
 
     const result = await createSignatureHeader(options);
