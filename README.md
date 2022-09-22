@@ -19,6 +19,64 @@ yarn build
 
 #### Create signature
 
+With node http
+
+```typescript
+const request = http.request("example.com");
+const signResult = await signRequest({
+  alg: AlgorithmTypes["ecdsa-p256-sha256"],
+  key: privateKey,
+  keyid: "key1",
+  request,
+});
+if (signResult.isErr()) {
+  onError(result.error);
+}
+if (signResult.isOk()) {
+  const signedRequest = signResult.value;
+  signedRequest.then((res) => {
+    // process response
+  });
+}
+// Optional data parameter handles request body
+const request = http.post("example.com");
+const signResult = await signRequest({
+  alg: AlgorithmTypes["ecdsa-p256-sha256"],
+  key: privateKey,
+  keyid: "key1",
+  request,
+  data: `{"some": "request body"}`,
+});
+if (signResult.isErr()) {
+  onError(result.error);
+}
+if (signResult.isOk()) {
+  const signedRequest = signResult.value;
+  signedRequest.then((res) => {
+    // process response
+  });
+}
+```
+
+With SuperAgent
+
+```typescript
+const request = superagent.post("example.com").send({ some: "body" }).set("Content-Type", "Application/Json");
+const signResult = await signRequest({
+  alg: AlgorithmTypes["ecdsa-p256-sha256"],
+  key: privateKey,
+  keyid: "key1",
+  request,
+});
+if (signResult.isErr()) {
+  onError(result.error);
+}
+if (signResult.isOk()) {
+  const signedRequest = signResult.value;
+  signedRequest.end();
+}
+```
+
 With axios config:
 
 ```typescript
@@ -44,6 +102,32 @@ const createSignedRequest = async (config: AxiosRequestConfig): Promise<AxiosReq
 ```
 
 #### Verify signature
+
+With node http
+
+```typescript
+
+    const server = http.createServer((req, res) => {
+      const keymap = { keyid: ecdsap256PublicKey };
+      const alg = AlgorithmTypes["ecdsa-p256-sha256"];
+
+      let reqdata = "";
+      req.on("data", (chunk) => {
+        reqdata += chunk;
+      });
+
+      req.on("end", () => {
+        verifyRequest({ keymap, alg, request: req, data: reqdata }).then((verifyResult) => {
+          if(verifyResult.isErr()){
+            onError(verifyResult.error);
+          }
+          if(verifyResult.isOk()){
+            console.log(`Is verified: ${verifyResult.value}`);
+          }
+        });
+      }
+    }
+```
 
 With express
 
