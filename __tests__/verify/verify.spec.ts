@@ -4,28 +4,247 @@
  * Confidential and proprietary
  */
 import crypto from "crypto";
+import http from "http";
 import { err } from "neverthrow";
 
-import { verifySignatureHeader, createSignatureHeader, CreateSignatureHeaderOptions } from "../../src";
+import {
+  verifySignatureHeader,
+  createSignatureHeader,
+  CreateSignatureHeaderOptions,
+  verifyRequest,
+  AlgorithmTypes,
+} from "../../src";
 import * as common from "../../src/common";
+import { signECDSA, signEd25519, verifyECDSA } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
-import { signECDSA, verifyECDSA } from "../../src/common/cryptoPrimatives";
+
+let createSignatureResult: { digest?: string; signature: string; signatureInput: string };
+let createSignatureResultTwo: { digest?: string; signature: string; signatureInput: string };
+let ecdsap256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let ecdsap256KeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let keyMap: { [keyid: string]: crypto.KeyObject };
+
+describe("verifyRequest", () => {
+  let server: http.Server;
+  let host: string;
+  let port: number;
+
+  type Response = {
+    headers: Record<string, unknown>;
+    statusCode: number | undefined;
+    body: unknown;
+  };
+  const request = (httpoptions: http.RequestOptions, data?: string): Promise<Response> => {
+    return new Promise<Response>((resolve, reject) => {
+      const req = http.request(httpoptions, (res) => {
+        // NOTE: This is an example of collecting response body, useful when testing
+        //       signature verification
+        const chunks: unknown[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          resolve({
+            headers: res.headers,
+            statusCode: res.statusCode,
+            body: JSON.parse(chunks.join("")),
+          });
+        });
+      });
+
+      // verify request with signature
+      if (data) {
+        req.write(data);
+      }
+
+      req.on("error", (error) => reject(error));
+      req.end();
+    });
+  };
+
+  afterEach(async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+  });
+
+  beforeEach(async () => {
+    ecdsap256KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ecdsap256KeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ed25519KeyPair = crypto.generateKeyPairSync("ed25519");
+
+    const createOptions: CreateSignatureHeaderOptions = {
+      url: `http://127.0.0.1/test`,
+      method: "POST",
+      signer: { keyid: "key1", sign: signECDSA(ecdsap256KeyPair.privateKey) },
+      expires: 10000000000,
+      nonce: "abcd",
+      httpHeaders: {
+        ["HOST"]: "127.0.0.1",
+        ["Content-Type"]: "application/json",
+      },
+      alg: AlgorithmTypes["ecdsa-p256-sha256"],
+      body: `{"hello": "world"}`,
+    };
+    await createSignatureHeader(createOptions).then((res) => {
+      expect(res.isOk()).toBe(true);
+      res.isOk() ? (createSignatureResult = res.value) : undefined;
+    });
+
+    const createOptionsTwo: CreateSignatureHeaderOptions = {
+      url: `http://127.0.0.1/test`,
+      method: "POST",
+      signer: { keyid: "key1", sign: signEd25519(ed25519KeyPair.privateKey) },
+      expires: 10000000000,
+      nonce: "abcd",
+      httpHeaders: {
+        ["HOST"]: "127.0.0.1",
+        ["Content-Type"]: "application/json",
+      },
+      alg: AlgorithmTypes["ecdsa-p256-sha256"],
+      body: `{"hello": "world"}`,
+    };
+    await createSignatureHeader(createOptionsTwo).then((res) => {
+      expect(res.isOk()).toBe(true);
+      res.isOk() ? (createSignatureResultTwo = res.value) : undefined;
+    });
+  });
+
+  it("Should verify a request with ecdsa-p256 alg", async () => {
+    server = http.createServer((req, res) => {
+      if (req.url === "/test") {
+        const keymap = { key1: ecdsap256KeyPair.publicKey };
+        const alg = AlgorithmTypes["ecdsa-p256-sha256"];
+
+        let reqdata = "";
+        req.on("data", (chunk) => {
+          reqdata += chunk;
+        });
+
+        req.on("end", () => {
+          verifyRequest({ keymap, alg, request: req, data: reqdata }).then((verifyResult) => {
+            expect(unwrap(verifyResult)).toEqual(true);
+          });
+        });
+
+        const data = {
+          headers: req.headers,
+        };
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(data));
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end(JSON.stringify({ error: "Not Found" }));
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(() => resolve());
+    });
+
+    const address = server.address();
+    if (typeof address !== "object" || address == null) {
+      throw new Error("Unexpected server address");
+    }
+    host = "127.0.0.1";
+    port = address?.port;
+
+    const validHttpHeaderInput = {
+      Signature: createSignatureResult.signature,
+      "Signature-Input": createSignatureResult.signatureInput,
+      "Content-Digest": createSignatureResult.digest,
+    };
+
+    const data = `{"hello": "world"}`;
+
+    await request(
+      {
+        host,
+        port,
+        path: "/test",
+        method: "POST",
+        headers: {
+          ...validHttpHeaderInput,
+          ["HOST"]: "127.0.0.1",
+          ["Content-Type"]: "application/json",
+        },
+      },
+      data
+    );
+  });
+
+  it("Should verify a request with ed25519 alg", async () => {
+    server = http.createServer((req, res) => {
+      if (req.url === "/test") {
+        const keymap = { key1: ed25519KeyPair.publicKey };
+        const alg = AlgorithmTypes.ed25519;
+
+        let reqdata = "";
+        req.on("data", (chunk) => {
+          reqdata += chunk;
+        });
+
+        req.on("end", () => {
+          verifyRequest({ keymap, alg, request: req, data: reqdata }).then((verifyResult) => {
+            expect(unwrap(verifyResult)).toEqual(true);
+          });
+        });
+
+        const data = {
+          headers: req.headers,
+        };
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(data));
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end(JSON.stringify({ error: "Not Found" }));
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(() => resolve());
+    });
+
+    const address = server.address();
+    if (typeof address !== "object" || address == null) {
+      throw new Error("Unexpected server address");
+    }
+    host = "127.0.0.1";
+    port = address?.port;
+
+    const validHttpHeaderInput = {
+      Signature: createSignatureResultTwo.signature,
+      "Signature-Input": createSignatureResultTwo.signatureInput,
+      "Content-Digest": createSignatureResultTwo.digest,
+    };
+
+    const data = `{"hello": "world"}`;
+
+    await request(
+      {
+        host,
+        port,
+        path: "/test",
+        method: "POST",
+        headers: {
+          ...validHttpHeaderInput,
+          ["HOST"]: "127.0.0.1",
+          ["Content-Type"]: "application/json",
+        },
+      },
+      data
+    );
+  });
+});
 
 describe("verifySignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
 
-  let createSignatureResult: { digest?: string; signature: string; signatureInput: string };
-  let createSignatureResultTwo: { digest?: string; signature: string; signatureInput: string };
-  let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
-  let ecdsaKeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
-  let keyMap: { [keyid: string]: crypto.KeyObject };
-
   beforeEach(async () => {
-    ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ecdsap256KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
     const createOptions: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signECDSA(ecdsap256KeyPair.privateKey) },
       expires: 10000000000,
       nonce: "abcd",
       context: "application specific context",
@@ -35,7 +254,7 @@ describe("verifySignatureHeader", () => {
       res.isOk() ? (createSignatureResult = res.value) : undefined;
     });
 
-    ecdsaKeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    ecdsap256KeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
     const createOptionsTwo: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
       httpHeaders: {
@@ -43,14 +262,14 @@ describe("verifySignatureHeader", () => {
         Signature: createSignatureResult.signature,
         ["Signature-Input"]: createSignatureResult.signatureInput,
       },
-      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPairTwo.privateKey) },
+      signer: { keyid: "key2", sign: signECDSA(ecdsap256KeyPairTwo.privateKey) },
     };
     await createSignatureHeader(createOptionsTwo).then((res) => {
       expect(res.isOk()).toBe(true);
       res.isOk() ? (createSignatureResultTwo = res.value) : undefined;
     });
 
-    keyMap = { key1: ecdsaKeyPair.publicKey, key2: ecdsaKeyPairTwo.publicKey };
+    keyMap = { key1: ecdsap256KeyPair.publicKey, key2: ecdsap256KeyPairTwo.publicKey };
   });
 
   it("Should verify a valid signature", async () => {
@@ -157,7 +376,7 @@ describe("verifySignatureHeader", () => {
         Signature: createSignatureResult.signature,
         ["Signature-Input"]: createSignatureResult.signatureInput,
       },
-      signer: { keyid: "key2", sign: signECDSA(ecdsaKeyPairTwo.privateKey) },
+      signer: { keyid: "key2", sign: signECDSA(ecdsap256KeyPairTwo.privateKey) },
       existingSignatureKey: "sig1",
     };
 

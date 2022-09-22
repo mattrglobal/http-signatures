@@ -40,7 +40,6 @@
   "devDependencies": {
     "@commitlint/cli": "17.0.2",
     "@commitlint/config-conventional": "17.0.2",
-    "@stablelib/ed25519": "1.0.2",
     "@types/jest": "28.1.1",
     "@types/ramda": "0.27.32",
     "@typescript-eslint/eslint-plugin": "5.28.0",

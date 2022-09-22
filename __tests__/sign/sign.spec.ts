@@ -4,92 +4,163 @@
  * Confidential and proprietary
  */
 import crypto from "crypto";
-
 import http from "http";
-import { generateKeyPairFromSeed, KeyPair } from "@stablelib/ed25519";
+
+import { signECDSA } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeader, CreateSignatureHeaderOptions, signRequest, AlgorithmTypes } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
-import { signECDSA } from "../../src/common/cryptoPrimatives";
 
 let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ecdsaKeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
-let ed25519KeyPair: KeyPair;
+let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 
 describe("signRequest", () => {
   let server: http.Server;
-  let path: string;
+  let host: string;
+  let port: number;
 
-  beforeAll(() => {
-    server = http.createServer(function (req, res) {
-      res.writeHead(200);
-      res.end();
+  type Response = {
+    headers: Record<string, unknown>;
+    statusCode: number | undefined;
+    body: unknown;
+  };
+  const request = (
+    httpoptions: http.RequestOptions,
+    signOptions?: {
+      alg: AlgorithmTypes;
+      key: crypto.KeyObject;
+      keyid: string;
+    }
+  ): Promise<Response> => {
+    return new Promise<Response>((resolve, reject) => {
+      let req = http.request(httpoptions, (res) => {
+        const chunks: unknown[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          resolve({
+            headers: res.headers,
+            statusCode: res.statusCode,
+            body: JSON.parse(chunks.join("")),
+          });
+        });
+      });
+
+      if (signOptions) {
+        signRequest({ ...signOptions, request: req }).then((signResult) => {
+          if (signResult.isErr()) {
+            console.log(signResult.error); // todo
+          } else {
+            req = signResult.value;
+          }
+          req.on("error", (error) => reject(error));
+          req.end();
+        });
+      }
     });
-    path = "/tmp/hudsontest6"; // TODO
-    server.listen(path);
+  };
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      if (req.url === "/test") {
+        const data = {
+          headers: req.headers,
+        };
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(data));
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end(JSON.stringify({ error: "Not Found" }));
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(() => resolve());
+    });
+
+    const address = server.address();
+    if (typeof address !== "object" || address == null) {
+      throw new Error("Unexpected server address");
+    }
+    host = "127.0.0.1";
+    port = address?.port;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
   });
 
   beforeEach(() => {
     ecdsaKeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
     ecdsaKeyPairTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
-    ed25519KeyPair = generateKeyPairFromSeed(new Uint8Array(32));
+    ed25519KeyPair = crypto.generateKeyPairSync("ed25519");
   });
 
   it("Should sign a request with ecdsa alg", async () => {
-    const request = http.request({
-      socketPath: path,
-      method: "GET",
-      headers: {
-        "Content-Type": "text/plain",
+    const res = await request(
+      {
+        host,
+        port,
+        path: "/test",
+        method: "GET",
+        headers: {
+          "content-type": "text/plain",
+        },
       },
+      {
+        alg: AlgorithmTypes["ecdsa-p256-sha256"],
+        key: ecdsaKeyPair.privateKey,
+        keyid: "key1",
+      }
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.headers).toEqual({
+      connection: "close",
+      date: expect.any(String),
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
     });
-
-    request.on("error", function (err) {
-      console.log(err);
-    });
-
-    const result = await signRequest({
-      alg: AlgorithmTypes["ecdsa-p256-sha256"],
-      key: ecdsaKeyPair.privateKey,
-      keyid: "key1",
-      request,
-    });
-
-    request.end();
-
-    expect(unwrap(result).getHeaders()).toMatchObject({
-      signature: expect.stringMatching(/^sig1=*.*:$/),
-      "signature-input":
-        'sig1=("@request-target" "content-type" "host" "@method");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+    expect(res.body).toMatchObject({
+      headers: {
+        signature: expect.stringMatching(/^sig1=*.*:$/),
+        "signature-input":
+          'sig1=("@request-target" "content-type" "host" "@method");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+      },
     });
   });
 
   it("Should sign a request with ed25519 alg", async () => {
-    const request = http.request({
-      socketPath: path,
-      method: "GET",
-      headers: {
-        "Content-Type": "text/plain",
+    const res = await request(
+      {
+        host,
+        port,
+        path: "/test",
+        method: "GET",
+        headers: {
+          "content-type": "text/plain",
+        },
       },
+      {
+        alg: AlgorithmTypes.ed25519,
+        key: ed25519KeyPair.privateKey,
+        keyid: "key2",
+      }
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.headers).toEqual({
+      connection: "close",
+      date: expect.any(String),
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
     });
-
-    request.on("response", function (response) {
-      server.close();
-    });
-
-    const result = await signRequest({
-      alg: AlgorithmTypes.ed25519,
-      key: ed25519KeyPair.secretKey,
-      keyid: "key2",
-      request,
-    });
-
-    request.end();
-
-    expect(unwrap(result).getHeaders()).toMatchObject({
-      signature: expect.stringMatching(/^sig1=*.*:$/),
-      "signature-input":
-        'sig1=("@request-target" "content-type" "host" "@method");alg="ed25519";keyid="key2";created=1577836800',
+    expect(res.body).toMatchObject({
+      headers: {
+        signature: expect.stringMatching(/^sig1=*.*:$/),
+        "signature-input":
+          'sig1=("@request-target" "content-type" "host" "@method");alg="ed25519";keyid="key2";created=1577836800',
+      },
     });
   });
 });
