@@ -4,7 +4,6 @@
  * Confidential and proprietary
  */
 import crypto from "crypto";
-import { sign, verify } from "@stablelib/ed25519";
 
 export const signECDSA =
   (privateKey: crypto.KeyObject) =>
@@ -22,23 +21,39 @@ export const verifyECDSA =
   };
 
 export const signEd25519 =
-  (privateKey: Uint8Array) =>
+  (privateKey: crypto.KeyObject) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
-    return await sign(privateKey, data);
+    return await crypto.sign(null, data, privateKey);
   };
 
 export const verifyEd25519 =
-  (keyMap: { [keyid: string]: Uint8Array }) =>
+  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    return await verify(keyMap[keyid], data, signature);
+    return await crypto.verify(null, data, keyMap[keyid], signature);
   };
 
+type keyMap = {
+  [keyid: string]: crypto.KeyObject;
+};
+
+type VerifyFunctionWrapper = (keyMap: keyMap) => VerifyFunction;
+
+type VerifyFunction = (keyid: string, data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
+
+type SignFunctionWrapper = (privateKey: crypto.KeyObject) => SignFunction;
+
+type SignFunction = (data: Uint8Array) => Promise<Uint8Array>;
+
 export const algMap: {
-  [key: string]: { sign: (privateKey: any) => (data: Uint8Array) => Promise<Uint8Array>; verify: (keymap: any) => any };
+  [key: string]: {
+    sign: SignFunctionWrapper;
+    verify: VerifyFunctionWrapper;
+  };
 } = {
   // ["rsa-pss-sha512"] = "rsa-pss-sha512",
   // ["rsa-v1_5-sha256"] = "rsa-v1_5-sha256",
   // ["hmac-sha256"] = "hmac-sha256",
+  // ["ecdsa-p384-sha384"] = "ecdsa-p384-sha384",
   ["ecdsa-p256-sha256"]: {
     sign: signECDSA,
     verify: verifyECDSA,

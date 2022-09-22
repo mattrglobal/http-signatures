@@ -1,9 +1,14 @@
+/*
+ * Copyright 2019 - MATTR Limited
+ * All rights reserved
+ * Confidential and proprietary
+ */ import { KeyObject } from "crypto";
+import { ClientRequest } from "http";
+import { err, ok, Result } from "neverthrow";
+
 import { algMap } from "../common/cryptoPrimatives";
 
-import { ClientRequest } from "http";
 import { createSignatureHeader, AlgorithmTypes } from "./createSignatureHeader";
-import { KeyObject } from "crypto";
-import { err, ok, Result } from "neverthrow";
 
 export type SignRequestOptions = {
   /*
@@ -13,7 +18,7 @@ export type SignRequestOptions = {
   /*
    * Private key used for encryption.
    */
-  key: KeyObject | Uint8Array;
+  key: KeyObject;
   /*
    * Identifier for the key used for encryption.
    */

@@ -5,3 +5,4 @@
  */
 
 export * from "./verifySignatureHeader";
+export * from "./verifyRequest";
