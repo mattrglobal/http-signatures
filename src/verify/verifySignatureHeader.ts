@@ -105,6 +105,7 @@ export const verifySignatureHeader = (
         signature,
         expires,
         nonce,
+        context,
       } = signatureSet[signatureId];
 
       const currentTime = Math.floor(Date.now() / 1000);
@@ -162,6 +163,7 @@ export const verifySignatureHeader = (
         created,
         expires,
         nonce,
+        context,
         ...(existingSignatureItem ? { existingSignatureKey } : {}),
       });
 

@@ -18,6 +18,7 @@ type SignatureInputParams = {
   expires?: number;
   alg: string;
   nonce?: string;
+  context?: string;
   coveredFields?: [string, Parameters][];
 };
 
@@ -53,6 +54,7 @@ export const getSignatureData = (
     const alg: string | undefined = signatureParams.get("alg") as string;
     const expires: number | undefined = signatureParams.get("expires") as number;
     const nonce: string | undefined = signatureParams.get("nonce") as string;
+    const context: string | undefined = signatureParams.get("context") as string;
 
     if (!keyid || !created || !alg || !coveredFields.length || !signatureId) {
       return err("Signature input string is missing a required field");
@@ -74,6 +76,7 @@ export const getSignatureData = (
         expires,
         alg,
         nonce,
+        context,
         coveredFields,
         signature,
       },

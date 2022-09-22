@@ -28,6 +28,7 @@ describe("verifySignatureHeader", () => {
       signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
       expires: 10000000000,
       nonce: "abcd",
+      context: "application specific context",
     };
     await createSignatureHeader(createOptions).then((res) => {
       expect(res.isOk()).toBe(true);
