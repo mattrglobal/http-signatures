@@ -21,12 +21,12 @@ import { CreateSignatureHeaderError } from "../errors";
 
 //  Algorithm list as per https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-12.html#section-6.1.2
 export enum AlgorithmTypes {
-  ["rsa-pss-sha512"] = "rsa-pss-sha512",
-  ["rsa-v1_5-sha256"] = "rsa-v1_5-sha256",
-  ["hmac-sha256"] = "hmac-sha256",
-  ["ecdsa-p256-sha256"] = "ecdsa-p256-sha256",
-  ["ecdsa-p384-sha384"] = "ecdsa-p384-sha384",
-  ["ed25519"] = "ed25519",
+  "rsa-pss-sha512" = "rsa-pss-sha512",
+  "rsa-v1_5-sha256" = "rsa-v1_5-sha256",
+  "hmac-sha256" = "hmac-sha256",
+  "ecdsa-p256-sha256" = "ecdsa-p256-sha256",
+  "ecdsa-p384-sha384" = "ecdsa-p384-sha384",
+  ed25519 = "ed25519",
 }
 
 export type CreateSignatureHeaderOptions = {

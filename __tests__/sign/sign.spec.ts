@@ -5,10 +5,17 @@
  */
 import crypto from "crypto";
 import http from "http";
+import superagent from "superagent";
 
 import { signECDSA } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
-import { createSignatureHeader, CreateSignatureHeaderOptions, signRequest, AlgorithmTypes } from "../../src/sign";
+import {
+  createSignatureHeader,
+  CreateSignatureHeaderOptions,
+  signRequest,
+  SignOptions,
+  AlgorithmTypes,
+} from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
 let ecdsaKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
@@ -25,16 +32,9 @@ describe("signRequest", () => {
     statusCode: number | undefined;
     body: unknown;
   };
-  const request = (
-    httpoptions: http.RequestOptions,
-    signOptions?: {
-      alg: AlgorithmTypes;
-      key: crypto.KeyObject;
-      keyid: string;
-    }
-  ): Promise<Response> => {
+  const request = (httpoptions: http.RequestOptions, signOptions?: SignOptions): Promise<Response> => {
     return new Promise<Response>((resolve, reject) => {
-      let req = http.request(httpoptions, (res) => {
+      const req = http.request(httpoptions, (res) => {
         const chunks: unknown[] = [];
         res.on("data", (chunk) => chunks.push(chunk));
         res.on("end", () => {
@@ -49,12 +49,58 @@ describe("signRequest", () => {
       if (signOptions) {
         signRequest({ ...signOptions, request: req }).then((signResult) => {
           if (signResult.isErr()) {
-            console.log(signResult.error); // todo
+            throw signResult.error;
           } else {
-            req = signResult.value;
+            const signedRequest = signResult.value;
+            signedRequest.on("error", (error) => reject(error));
+            signedRequest.end();
           }
-          req.on("error", (error) => reject(error));
-          req.end();
+        });
+      } else {
+        req.on("error", (error) => reject(error));
+        req.end();
+      }
+    });
+  };
+
+  type SuperAgentRequestOptions = {
+    url: string;
+    method: "get" | "post" | "put" | "patch" | "delete";
+    headers: { [key: string]: string };
+    body?: { [key: string]: string };
+  };
+  const superAgentRequest = (
+    requestOptions: SuperAgentRequestOptions,
+    signOptions?: SignOptions
+  ): Promise<Response> => {
+    return new Promise<Response>((resolve, reject) => {
+      const req = superagent[requestOptions.method](requestOptions.url);
+
+      if (requestOptions.body) {
+        req.send(requestOptions.body);
+      }
+
+      for (const key in requestOptions.headers) {
+        req.set(key, requestOptions.headers[key]);
+      }
+
+      if (signOptions) {
+        signRequest({ ...signOptions, request: req }).then((signResult) => {
+          if (signResult.isErr()) {
+            throw signResult.error;
+          } else {
+            const signedRequest = signResult.value;
+            signedRequest.end((err, res) => {
+              if (err) {
+                reject(err);
+              }
+              resolve({
+                headers: res.headers,
+                statusCode: res.statusCode,
+                body: res.body,
+              });
+            });
+          }
         });
       }
     });
@@ -99,22 +145,24 @@ describe("signRequest", () => {
   });
 
   it("Should sign a request with ecdsa alg", async () => {
-    const res = await request(
-      {
-        host,
-        port,
-        path: "/test",
-        method: "GET",
-        headers: {
-          "content-type": "text/plain",
-        },
+    const requestOptions = {
+      host,
+      port,
+      path: "/test",
+      method: "GET",
+      headers: {
+        "content-type": "text/plain",
       },
-      {
-        alg: AlgorithmTypes["ecdsa-p256-sha256"],
-        key: ecdsaKeyPair.privateKey,
-        keyid: "key1",
-      }
-    );
+    };
+
+    const signOptions: SignOptions = {
+      alg: AlgorithmTypes["ecdsa-p256-sha256"],
+      key: ecdsaKeyPair.privateKey,
+      keyid: "key1",
+      data: `{"Hello": "World"}`,
+    };
+
+    const res = await request(requestOptions, signOptions);
     expect(res.statusCode).toBe(200);
     expect(res.headers).toEqual({
       connection: "close",
@@ -126,28 +174,30 @@ describe("signRequest", () => {
       headers: {
         signature: expect.stringMatching(/^sig1=*.*:$/),
         "signature-input":
-          'sig1=("@request-target" "content-type" "host" "@method");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
+          'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
       },
     });
   });
 
   it("Should sign a request with ed25519 alg", async () => {
-    const res = await request(
-      {
-        host,
-        port,
-        path: "/test",
-        method: "GET",
-        headers: {
-          "content-type": "text/plain",
-        },
+    const requestOptions = {
+      host,
+      port,
+      path: "/test",
+      method: "GET",
+      headers: {
+        "content-type": "text/plain",
       },
-      {
-        alg: AlgorithmTypes.ed25519,
-        key: ed25519KeyPair.privateKey,
-        keyid: "key2",
-      }
-    );
+    };
+
+    const signOptions = {
+      alg: AlgorithmTypes.ed25519,
+      key: ed25519KeyPair.privateKey,
+      keyid: "key2",
+      data: `{"Hello": "World"}`,
+    };
+
+    const res = await request(requestOptions, signOptions);
     expect(res.statusCode).toBe(200);
     expect(res.headers).toEqual({
       connection: "close",
@@ -159,7 +209,43 @@ describe("signRequest", () => {
       headers: {
         signature: expect.stringMatching(/^sig1=*.*:$/),
         "signature-input":
-          'sig1=("@request-target" "content-type" "host" "@method");alg="ed25519";keyid="key2";created=1577836800',
+          'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ed25519";keyid="key2";created=1577836800',
+      },
+    });
+  });
+
+  it("Should sign a request created by SuperAgent", async () => {
+    const requestOptions: SuperAgentRequestOptions = {
+      url: `http://${host}:${port}/test`,
+      method: "post",
+      headers: {
+        "Content-Type": "Application/Json",
+      },
+      body: {
+        Hello: "World",
+      },
+    };
+
+    const signOptions: SignOptions = {
+      alg: AlgorithmTypes["ecdsa-p256-sha256"],
+      key: ecdsaKeyPair.privateKey,
+      keyid: "key1",
+    };
+
+    const res = await superAgentRequest(requestOptions, signOptions);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers).toEqual({
+      connection: "close",
+      date: expect.any(String),
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
+    });
+    expect(res.body).toMatchObject({
+      headers: {
+        signature: expect.stringMatching(/^sig1=*.*:$/),
+        "signature-input":
+          'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800',
       },
     });
   });

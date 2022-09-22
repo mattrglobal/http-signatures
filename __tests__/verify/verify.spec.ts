@@ -27,6 +27,7 @@ let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject 
 let keyMap: { [keyid: string]: crypto.KeyObject };
 
 describe("verifyRequest", () => {
+  Date.now = jest.fn(() => 1577836800); //01.01.2020
   let server: http.Server;
   let host: string;
   let port: number;
@@ -39,8 +40,6 @@ describe("verifyRequest", () => {
   const request = (httpoptions: http.RequestOptions, data?: string): Promise<Response> => {
     return new Promise<Response>((resolve, reject) => {
       const req = http.request(httpoptions, (res) => {
-        // NOTE: This is an example of collecting response body, useful when testing
-        //       signature verification
         const chunks: unknown[] = [];
         res.on("data", (chunk) => chunks.push(chunk));
         res.on("end", () => {
@@ -52,7 +51,6 @@ describe("verifyRequest", () => {
         });
       });
 
-      // verify request with signature
       if (data) {
         req.write(data);
       }
