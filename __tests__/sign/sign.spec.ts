@@ -38,12 +38,13 @@ describe("createSignatureHeader", () => {
     });
   });
 
-  it("Should accept an optional nonce and expiry", async () => {
+  it("Should accept an optional nonce, expiry and context", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
       signer: { keyid: "key1", sign: signECDSA(ecdsaKeyPair.privateKey) },
       expires: 1577836801,
       nonce: "abcdefg",
+      context: "application specific context",
     };
 
     const result = await createSignatureHeader(options);
@@ -52,7 +53,7 @@ describe("createSignatureHeader", () => {
       // we can't compare the signature directly as ECDSA is not deterministic
       signature: expect.stringMatching(/^sig1=*.*:$/),
       signatureInput:
-        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800;expires=1577836801;nonce="abcdefg"',
+        'sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1577836800;expires=1577836801;nonce="abcdefg";context="application specific context"',
       digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
     });
   });

@@ -19,12 +19,13 @@ import {
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
-//  Algorithm list as per https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#section-6.1.2
+//  Algorithm list as per https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-12.html#section-6.1.2
 export enum AlgorithmTypes {
   ["rsa-pss-sha512"] = "rsa-pss-sha512",
   ["rsa-v1_5-sha256"] = "rsa-v1_5-sha256",
   ["hmac-sha256"] = "hmac-sha256",
   ["ecdsa-p256-sha256"] = "ecdsa-p256-sha256",
+  ["ecdsa-p384-sha384"] = "ecdsa-p384-sha384",
   ["ed25519"] = "ed25519",
 }
 
@@ -75,6 +76,10 @@ export type CreateSignatureHeaderOptions = {
    */
   readonly nonce?: string;
   /**
+   * An optional application specific context parameter
+   */
+  readonly context?: string;
+  /**
    * The HTTP message signature algorithm from the HTTP Message Signature Algorithm Registry, as a String value.
    */
   readonly alg: AlgorithmTypes;
@@ -99,6 +104,7 @@ export const createSignatureHeader = async (
       existingSignatureKey,
       expires,
       nonce,
+      context,
       alg,
     } = options;
 
@@ -187,6 +193,7 @@ export const createSignatureHeader = async (
       existingSignatureKey,
       created,
       expires,
+      context,
       nonce,
     });
 

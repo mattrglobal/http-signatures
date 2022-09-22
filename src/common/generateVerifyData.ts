@@ -72,10 +72,11 @@ export type GenereateSignatureParamsOptions = {
   readonly created: number;
   readonly expires?: number;
   readonly nonce?: string;
+  readonly context?: string;
   readonly existingSignatureKey?: string;
 };
 export const generateSignatureParams = (options: GenereateSignatureParamsOptions): InnerList => {
-  const { data, keyid, alg, existingSignatureKey, created, expires, nonce } = options;
+  const { data, keyid, alg, existingSignatureKey, created, expires, nonce, context } = options;
 
   return [
     data.map(([key]: VerifyDataEntry) =>
@@ -88,6 +89,7 @@ export const generateSignatureParams = (options: GenereateSignatureParamsOptions
       ["created", created],
       ...(expires ? [["expires", expires] as const] : []),
       ...(nonce ? [["nonce", nonce] as const] : []),
+      ...(context ? [["context", context] as const] : []),
     ]),
   ];
 };
