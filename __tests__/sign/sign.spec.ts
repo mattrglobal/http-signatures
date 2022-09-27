@@ -21,8 +21,6 @@ import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHea
 let ecdsaP256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ecdsaP384KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
-let rsaPssKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
-let hmacSharedSecret: crypto.KeyObject;
 
 describe("signRequest", () => {
   let server: http.Server;
@@ -144,50 +142,7 @@ describe("signRequest", () => {
     ecdsaP256KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
     ecdsaP384KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-384" });
     ed25519KeyPair = crypto.generateKeyPairSync("ed25519");
-    rsaPssKeyPair = crypto.generateKeyPairSync("rsa-pss", { modulusLength: 4096 });
-    hmacSharedSecret = crypto.createSecretKey(crypto.randomBytes(64));
   });
-
-  // test.each([ // TODO
-  //   [
-  //     AlgorithmTypes["ecdsa-p256-sha256"],
-  //     ecdsaP256KeyPair.privateKey,
-  //   ]
-  // ])("Should sign a request with %s algorithm",
-  // async (alg: AlgorithmTypes, key: crypto.KeyObject) => {
-  //   const requestOptions = {
-  //     host,
-  //     port,
-  //     path: "/test",
-  //     method: "GET",
-  //     headers: {
-  //       "content-type": "text/plain",
-  //     },
-  //   };
-
-  //   const signOptions: SignOptions = {
-  //     alg,
-  //     key,
-  //     keyid: "key1",
-  //     data: `{"Hello": "World"}`,
-  //   };
-
-  //   const res = await request(requestOptions, signOptions);
-  //   expect(res.statusCode).toBe(200);
-  //   expect(res.headers).toEqual({
-  //     connection: "close",
-  //     date: expect.any(String),
-  //     "content-type": "application/json",
-  //     "transfer-encoding": "chunked",
-  //   });
-  //   expect(res.body).toMatchObject({
-  //     headers: {
-  //       signature: expect.stringMatching(/^sig1=*.*:$/),
-  //       "signature-input":
-  //         `sig1=("@request-target" "@method" "content-digest" "host" "content-type");alg="${alg}";keyid="key1";created=1577836800`
-  //     },
-  //   });
-  // })
 
   it("Should sign a request with ecdsa-p256-sha256 alg", async () => {
     const requestOptions = {
@@ -294,76 +249,6 @@ describe("signRequest", () => {
     });
   });
 
-  it("Should sign a request with rsa-pss-sha512 alg", async () => {
-    const requestOptions = {
-      host,
-      port,
-      path: "/test",
-      method: "GET",
-      headers: {
-        "content-type": "text/plain",
-      },
-    };
-
-    const signOptions = {
-      alg: AlgorithmTypes["rsa-pss-sha512"],
-      key: rsaPssKeyPair.privateKey,
-      keyid: "key1",
-      data: `{"Hello": "World"}`,
-    };
-
-    const res = await request(requestOptions, signOptions);
-    expect(res.statusCode).toBe(200);
-    expect(res.headers).toEqual({
-      connection: "close",
-      date: expect.any(String),
-      "content-type": "application/json",
-      "transfer-encoding": "chunked",
-    });
-    expect(res.body).toMatchObject({
-      headers: {
-        signature: expect.stringMatching(/^sig1=*.*:$/),
-        "signature-input":
-          'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="rsa-pss-sha512";keyid="key1"',
-      },
-    });
-  });
-
-  it("Should sign a request with hmac-sha256 alg", async () => {
-    const requestOptions = {
-      host,
-      port,
-      path: "/test",
-      method: "GET",
-      headers: {
-        "content-type": "text/plain",
-      },
-    };
-
-    const signOptions = {
-      alg: AlgorithmTypes["hmac-sha256"],
-      key: hmacSharedSecret,
-      keyid: "key1",
-      data: `{"Hello": "World"}`,
-    };
-
-    const res = await request(requestOptions, signOptions);
-    expect(res.statusCode).toBe(200);
-    expect(res.headers).toEqual({
-      connection: "close",
-      date: expect.any(String),
-      "content-type": "application/json",
-      "transfer-encoding": "chunked",
-    });
-    expect(res.body).toMatchObject({
-      headers: {
-        signature: expect.stringMatching(/^sig1=*.*:$/),
-        "signature-input":
-          'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="hmac-sha256";keyid="key1"',
-      },
-    });
-  });
-
   it("Should sign a request created by SuperAgent", async () => {
     const requestOptions: SuperAgentRequestOptions = {
       url: `http://${host}:${port}/test`,
@@ -408,7 +293,6 @@ describe("createSignatureHeader", () => {
   beforeEach(() => {
     ecdsaP256KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
     ecdsaP384KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-384" });
-    rsaPssKeyPair = crypto.generateKeyPairSync("rsa-pss", { modulusLength: 4096 });
   });
 
   it("Should create a signature and a digest", async () => {
@@ -559,7 +443,8 @@ describe("createSignatureHeader", () => {
     });
   });
 
-  it("Test case from", async () => {
+  it("Should be able to create a minimal signature", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-minimal-signature-using-rsa
     Date.now = jest.fn(() => 1618884473000);
 
     const exampleKey = crypto.createPrivateKey({

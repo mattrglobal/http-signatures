@@ -18,18 +18,21 @@ export type VerifyRequestOptions = {
   keymap: { [keyid: string]: KeyObject };
   alg: AlgorithmTypes;
   request: http.IncomingMessage;
+  signatureKey?: string;
   data?: string;
 };
 export const verifyRequest = (options: VerifyRequestOptions): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  // at the moment, only one verifier -> all signatures must use same alg
-  const { request, alg, keymap, data } = options;
-
-  // todo differentiate http and https
+  /* 
+    Currently this function accepts only one verifier. As such, it's recommended to pass in a signature key to verify 
+    a specific signature unless all signatures on the request are signed with the same algorithm.
+  */
+  const { request, alg, keymap, data, signatureKey } = options;
 
   return verifySignatureHeader({
     url: `http://${request.headers.host}${request.url}` ?? "",
     method: request.method ?? "",
     httpHeaders: request.headers,
+    signatureKey: signatureKey,
     verifier: {
       verify: algMap[alg].verify(keymap),
     },

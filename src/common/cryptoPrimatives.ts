@@ -44,7 +44,7 @@ export const signRsaPssSha512 =
 export const verifyRsaPssSha512 =
   (keyMap: { [keyid: string]: crypto.KeyObject }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    return await crypto
+    return crypto
       .createVerify("SHA512")
       .update(data)
       .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
@@ -53,31 +53,13 @@ export const verifyRsaPssSha512 =
 export const signEd25519 =
   (privateKey: crypto.KeyObject) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
-    return await crypto.sign(null, data, privateKey);
+    return crypto.sign(null, data, privateKey);
   };
 
 export const verifyEd25519 =
   (keyMap: { [keyid: string]: crypto.KeyObject }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    return await crypto.verify(null, data, keyMap[keyid], signature);
-  };
-
-export const signHmacSha256 =
-  (privateKey: crypto.KeyObject) =>
-  async (data: Uint8Array): Promise<Uint8Array> => {
-    const hmac = crypto.createHmac("SHA512", privateKey);
-    hmac.write(data);
-    hmac.end();
-    return hmac.read().toString("hex");
-  };
-
-export const verifyHmacSha256 =
-  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
-  async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    const hmac = crypto.createHmac("SHA512", keyMap[keyid]);
-    hmac.write(data);
-    hmac.end();
-    return hmac.read().toString("hex") == signature; // TODO verify if this compares properly
+    return crypto.verify(null, data, keyMap[keyid], signature);
   };
 
 type keyMap = {
@@ -98,18 +80,19 @@ export const algMap: {
     verify: VerifyFunctionWrapper;
   };
 } = {
-  ["rsa-pss-sha512"]: {
-    sign: signRsaPssSha512,
-    verify: verifyRsaPssSha512,
-  },
-  ["rsa-v1_5-sha256"]: {
-    sign: signSha256,
-    verify: verifySha256,
-  },
-  ["hmac-sha256"]: {
-    sign: signHmacSha256,
-    verify: verifyHmacSha256,
-  },
+  // TODO implement remaining algorithms and corresponding tests from the spec
+  // ["rsa-pss-sha512"]: {
+  //   sign: signRsaPssSha512,
+  //   verify: verifyRsaPssSha512,
+  // },
+  // ["rsa-v1_5-sha256"]: {
+  //   sign: signSha256,
+  //   verify: verifySha256,
+  // },
+  // ["hmac-sha256"]: {
+  //   sign: signHmacSha256,
+  //   verify: verifyHmacSha256,
+  // },
   ["ecdsa-p384-sha384"]: {
     sign: signEcdsaSha384,
     verify: verifyEcdsaSha384,

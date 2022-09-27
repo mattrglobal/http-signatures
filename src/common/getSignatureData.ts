@@ -30,8 +30,6 @@ export const getSignatureData = (
   const signatureInputHeaderMap: Map<string, Item | InnerList> = parseDictionary(signatureInputHeaderValue);
   const signatureHeaderMap: Map<string, Item | InnerList> = parseDictionary(signatureHeaderValue);
 
-  //this needs to return an ORDERED list of any signature params
-
   let signatureData: SignatureInputSetParams = {};
 
   for (const entry of signatureInputHeaderMap) {

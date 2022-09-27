@@ -2,7 +2,8 @@
  * Copyright 2019 - MATTR Limited
  * All rights reserved
  * Confidential and proprietary
- */ import { KeyObject } from "crypto";
+ */
+import { KeyObject } from "crypto";
 import { ClientRequest } from "http";
 import { err, ok, Result } from "neverthrow";
 import { SuperAgentRequest } from "superagent";
@@ -24,12 +25,14 @@ export type SignOptions = { alg: AlgorithmTypes; key: KeyObject; keyid: string; 
 
 type SignRequestOptions<T> = SignOptions & { request: T };
 
+/*
+  Signs an outgoing request. Currently only supports ed25519 and ecdsa algorithms.
+*/
 export const signRequest = async <T extends ClientRequest | SuperAgentRequest>(
   options: SignRequestOptions<T>
 ): Promise<Result<T, Error>> => {
   const { alg, key, keyid, request, data } = options;
 
-  // node http ClientRequest
   if (request instanceof ClientRequest) {
     const signResult = await createSignatureHeader({
       signer: {
@@ -56,9 +59,7 @@ export const signRequest = async <T extends ClientRequest | SuperAgentRequest>(
     }
 
     return ok(request);
-  }
-  // SuperAgent SuperAgentRequest
-  else if (isSuperAgentRequest(request)) {
+  } else if (isSuperAgentRequest(request)) {
     const signResult = await createSignatureHeader({
       signer: {
         keyid: keyid,

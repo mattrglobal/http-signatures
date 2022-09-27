@@ -153,9 +153,6 @@ export const verifySignatureHeader = (
       }
       const { value: sortedEntries } = sortedEntriesRes;
 
-      // generate signature params currently orders the signature parameters consistently, but if someone else
-      // has ordered them differently, that's a problem
-
       const signatureParams = generateSignatureParams({
         data: sortedEntries,
         parameters,
@@ -168,6 +165,7 @@ export const verifySignatureHeader = (
         ...sortedEntries,
         ["@signature-params", serializeList([signatureParams])],
       ]);
+
       const decodedSignatureRes = decodeBase64(signature);
 
       if (decodedSignatureRes.isErr()) {
@@ -175,7 +173,6 @@ export const verifySignatureHeader = (
       }
       const { value: decodedSignature } = decodedSignatureRes;
 
-      console.log(`decodedSignature: ${decodedSignature}`);
       verifications.push(verify(keyid, bytesToVerify, Buffer.from(decodedSignature)));
     }
 
