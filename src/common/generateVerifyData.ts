@@ -36,7 +36,7 @@ type GenerateVerifyDataEntriesOptions = {
  */
 export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyData, string> => {
   const { coveredFieldNames, url, httpHeaders, method, existingSignatureKey } = options;
-  const { host, path } = urlParser.parse(url);
+  const { host, path, query } = urlParser.parse(url);
 
   // Checks if a header key is duplicated with a different case eg. no instances of key and kEy
   if (isObjectKeysIgnoreCaseDuplicated(httpHeaders)) {
@@ -60,9 +60,14 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
 
   const derivedComponents: DerivedComponents = {
     ...(coveredFieldNames.includes("@request-target") && { ["@request-target"]: path }),
-    ...(coveredFieldNames.includes("@method") && { ["@method"]: method.toUpperCase() }),
+    ...(coveredFieldNames.includes("@method") && { "@method": method.toUpperCase() }),
+    ...(coveredFieldNames.includes("@authority") && { "@authority": host }),
+    ...(coveredFieldNames.includes("@target-uri") && { "@target-uri": url }),
+    ...(coveredFieldNames.includes("@path") && { "@path": path }),
+    ...(coveredFieldNames.includes("@query") && { "@query": query }),
     ...(coveredFieldNames.includes("signature") && existingSignatureKey && { key: existingSignatureKey }),
   };
+  // TODO implement derived components for scheme, query parameters, status code
 
   const dataToSign: VerifyData = {
     ...derivedComponents,

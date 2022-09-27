@@ -15,7 +15,7 @@ import {
   AlgorithmTypes,
 } from "../../src";
 import * as common from "../../src/common";
-import { signSha256, signEd25519, verifySha256 } from "../../src/common/cryptoPrimatives";
+import { signSha256, signEd25519, verifySha256, verifyEd25519 } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
@@ -671,20 +671,43 @@ describe("verifySignatureHeader", () => {
   });
 
   // it("test case from spec", async () => {
-  //     const rsa_pss_key = crypto.createPublicKey(`-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr4tmm3r20Wd/PbqvP1s2+QEtvpuRaV8Yq40gjUR8y2Rjxa6dpG2GXHbPfvMs8ct+Lh1GH45x28Rw3Ry53mm+oAXjyQ86OnDkZ5N8lYbggD4O3w6M6pAvLkhk95AndTrifbIFPNU8PPMO7OyrFAHqgDsznjPFmTOtCEcN2Z1FpWgchwuYLPL+Wokqltd11nqqzi+bJ9cvSKADYdUAAN5WUtzdpiy6LbTgSxP7ociU4Tn0g5I6aDZJ7A8Lzo0KSyZYoA485mqcO0GVAdVw9lq4aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI2wIDAQAB\n-----END PUBLIC KEY-----`)
+  //     const rsa_pss_key = crypto.createPublicKey(`-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr4tmm3r20Wd/PbqvP1s2+QEtvpuRaV8Yq40gjUR8y2Rjxa6dpG2GXHbPfvMs8ct+Lh1GH45x28Rw3Ry53mm+oAXjyQ86OnDkZ5N8lYbggD4O3w6M6pAvLkhk95AndTrifbIFPNU8PPMO7OyrFAHqgDsznjPFmTOtCEcN2Z1FpWgchwuYLPL+Wokqltd11nqqzi+bJ9cvSKADYdUAAN5WUtzdpiy6LbTgSxP7ociU4Tn0g5I6aDZJ7A8Lzo0KSyZYoA485mqcO0GVAdVw9lq4aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI2wIDAQAB\n-----END PUBLIC KEY-----`, )
 
   //     const result = await verifySignatureHeader({
   //       httpHeaders: {
   //         Signature: "sig-b21=:d2pmTvmbncD3xQm8E9ZV2828BjQWGgiwAaw5bAkgibUopemLJcWDy/lkbbHAve4cRAtx31Iq786U7it++wgGxbtRxf8Udx7zFZsckzXaJMkA7ChG52eSkFxykJeNqsrWH5S+oxNFlD4dzVuwe8DhTSja8xxbR/Z2cOGdCbzR72rgFWhzx2VjBqJzsPLMIQKhO4DGezXehhWwE56YCE+O6c0mKZsfxVrogUvA4HELjVKWmAvtl6UnCh8jYzuVG5WSb/QEVPnP5TmcAnLH1g+s++v6d4s8m0gCw1fV5/SITLq9mhho8K3+7EPYTU8IU1bLhdxO5Nyt8C8ssinQ98Xw9Q==:",
   //         "Signature-Input": 'sig-b21=();created=1618884473;keyid="test-key-rsa-pss";nonce="b3k2pp5k7z-50gnwp.yemd"',
-  //         "Content-Digest": "sha-512=:JlEy2bfUz7WrWIjc1qV6KVLpdr/7L5/L4h7Sxvh6sNHpDQWDCL+GauFQWcZBvVDhiyOnAQsxzZFYwi0wDH+1pw==:",
+  //         "Content-Digest": "sha-512=:WZDPaVn/7XgHaAy8pmojAkGWoRx2UFChF41A2svX+TaPm+AbwAgBWnrIiYllu7BNNyealdVLvRwEmTHWXvJwew==:",
   //       },
   //       method: "POST",
-  //       url: 'https://example.com/foo?param=Value&Pet=dog',
+  //       url: 'http://example.com/foo?param=Value&Pet=dog',
   //       body: `{"hello": "world"}`,
   //       verifier: { verify: verifyRsaPssSha512({'test-key-rsa-pss': rsa_pss_key}) },
   //     });
 
   //     expect(unwrap(result)).toEqual(true);
   // })
+
+  it("should pass test case B.2.6. from the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-signing-a-request-using-ed2
+    const ed25519TestKey = crypto.createPublicKey(
+      `-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAJrQLj5P/89iXES9+vFgrIy29clF9CC/oPPsw3c5D0bs=\n-----END PUBLIC KEY-----`
+    );
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        Signature: "sig-b26=:wqcAqbmYJ2ji2glfAMaRy4gruYYnx2nEFN2HN6jrnDnQCK1u02Gb04v9EDgwUPiu4A0w6vuQv5lIp5WPpBKRCw==:",
+        "Signature-Input":
+          'sig-b26=("date" "@method" "@path" "@authority" "content-type" "content-length");created=1618884473;keyid="test-key-ed25519"',
+        "Content-Type": "application/json",
+        "Content-Length": "18",
+        date: "Tue, 20 Apr 2021 02:07:55 GMT",
+      },
+      method: "POST",
+      url: "http://example.com/foo",
+      verifier: { verify: verifyEd25519({ "test-key-ed25519": ed25519TestKey }) },
+    });
+
+    expect(unwrap(result)).toEqual(true);
+  });
 });

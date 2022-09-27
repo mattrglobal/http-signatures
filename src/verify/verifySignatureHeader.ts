@@ -175,6 +175,7 @@ export const verifySignatureHeader = (
       }
       const { value: decodedSignature } = decodedSignatureRes;
 
+      console.log(`decodedSignature: ${decodedSignature}`);
       verifications.push(verify(keyid, bytesToVerify, Buffer.from(decodedSignature)));
     }
 
