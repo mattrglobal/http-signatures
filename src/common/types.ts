@@ -5,9 +5,6 @@
  */
 
 export type VerifyData = {
-  ["@request-target"]: string;
-  ["@method"]: string;
-  host: string;
   readonly [key: string]: string | string[];
 };
 export type VerifyDataEntry = [string, string | string[] | undefined];

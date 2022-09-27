@@ -20,16 +20,6 @@ describe("generateSortedVerifyDataEntries", () => {
     done();
   });
 
-  it("Should sort with a default if no covered fields list is specified", (done) => {
-    const result = generateSortedVerifyDataEntries(verifyData);
-    expect(unwrap(result)).toEqual([
-      ["@method", "POST"],
-      ["@request-target", "request target"],
-      ["host", "host"],
-    ]);
-    done();
-  });
-
   it("Should return an error if covered fields do not map to every key of verifyData", (done) => {
     const coveredFields = ["@method", "@request-target", "host", "unknownkey"];
     const result = generateSortedVerifyDataEntries(verifyData, coveredFields);

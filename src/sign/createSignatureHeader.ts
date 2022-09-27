@@ -82,7 +82,11 @@ export type CreateSignatureHeaderOptions = {
   /**
    * The HTTP message signature algorithm from the HTTP Message Signature Algorithm Registry, as a String value.
    */
-  readonly alg: AlgorithmTypes;
+  readonly alg?: AlgorithmTypes;
+  /**
+   * An optional list of field names to cover in the signature. If omitted, a default list is used.
+   */
+  readonly coveredFieldNames?: string[];
 };
 
 /**
@@ -106,6 +110,18 @@ export const createSignatureHeader = async (
       nonce,
       context,
       alg,
+      coveredFieldNames = [
+        "@request-target",
+        "@method",
+        ...(body ? ["content-digest"] : []),
+        ...(existingSignatureKey ? ["signature"] : []),
+        ...(
+          httpHeaders &&
+          Object.keys(httpHeaders)
+            .filter((header) => header.toLowerCase() != "signature" && header.toLowerCase() != "signature-input")
+            .map((a) => a.toLowerCase())
+        ).sort(),
+      ],
     } = options;
 
     const created = Math.floor(Date.now() / 1000);
@@ -159,6 +175,7 @@ export const createSignatureHeader = async (
     const digest = body ? generateDigest(body) : undefined;
 
     const verifyDataRes = generateVerifyData({
+      coveredFieldNames: coveredFieldNames,
       httpHeaders: {
         ...httpHeaders,
         // Append the digest if necessary
@@ -172,14 +189,7 @@ export const createSignatureHeader = async (
       return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
 
-    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyDataRes.value, [
-      "@request-target",
-      "content-type",
-      "host",
-      "@method",
-      ...(digest ? ["content-digest"] : []),
-      ...(existingSignatureKey ? ["signature"] : []),
-    ]);
+    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyDataRes.value, coveredFieldNames);
     if (sortedEntriesRes.isErr()) {
       return err({ type: "MalformedInput", message: sortedEntriesRes.error });
     }
@@ -188,13 +198,15 @@ export const createSignatureHeader = async (
 
     const signatureParams = generateSignatureParams({
       data: sortedEntries,
-      alg,
-      keyid,
       existingSignatureKey,
-      created,
-      expires,
-      context,
-      nonce,
+      parameters: new Map<string, string | number>([
+        ["created", created],
+        ...(expires ? [["expires", expires] as const] : []),
+        ...(nonce ? [["nonce", nonce] as const] : []),
+        ...(alg ? [["alg", alg] as const] : []),
+        ["keyid", keyid],
+        ...(context ? [["context", context] as const] : []),
+      ]),
     });
 
     const bytesToSign = generateSignatureBytes([

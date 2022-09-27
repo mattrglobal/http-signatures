@@ -5,11 +5,9 @@
  */
 
 import { err, ok, Result } from "neverthrow";
-import { __, all, has, not, pipe, reduce, toPairs } from "ramda";
+import { __, all, has, not, pipe, reduce } from "ramda";
 
 import { VerifyData, VerifyDataEntry } from "./types";
-
-const sortByDefault = (verifyData: VerifyData): VerifyDataEntry[] => Array.from(toPairs(verifyData)).sort();
 
 /**
  * Sorts verifiedDataEntries into the order the header string defines
@@ -40,6 +38,5 @@ const sortByCoveredFields = (verifyData: VerifyData, coveredFields: string[]): R
  */
 export const generateSortedVerifyDataEntries = (
   verifyData: VerifyData,
-  coveredFields?: string[]
-): Result<VerifyDataEntry[], string> =>
-  coveredFields ? sortByCoveredFields(verifyData, coveredFields) : ok(sortByDefault(verifyData));
+  coveredFields: string[]
+): Result<VerifyDataEntry[], string> => sortByCoveredFields(verifyData, coveredFields);

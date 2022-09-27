@@ -14,6 +14,7 @@ describe("generateVerifyData", () => {
     created: Date.now(),
     url: "http://www.test.com/test?query=1",
     httpHeaders: { header1: "value", HEADER2: "value" },
+    coveredFieldNames: ["@request-target", "@method", "header1", "header2"],
   };
 
   it("Should return an object containing custom spec values and headers when given valid input", (done) => {
@@ -22,7 +23,6 @@ describe("generateVerifyData", () => {
     expect(unwrap(result)).toMatchObject({
       ["@request-target"]: "/test?query=1",
       ["@method"]: "GET",
-      host: "www.test.com",
       header1: "value",
       header2: "value",
     });

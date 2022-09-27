@@ -5,17 +5,47 @@
  */
 import crypto from "crypto";
 
-export const signECDSA =
+export const signSha256 =
   (privateKey: crypto.KeyObject) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
     return await crypto.createSign("SHA256").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
   };
 
-export const verifyECDSA =
+export const verifySha256 =
   (keyMap: { [keyid: string]: crypto.KeyObject }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
     return await crypto
       .createVerify("SHA256")
+      .update(data)
+      .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
+  };
+
+export const signEcdsaSha384 =
+  (privateKey: crypto.KeyObject) =>
+  async (data: Uint8Array): Promise<Uint8Array> => {
+    return await crypto.createSign("SHA384").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
+  };
+
+export const verifyEcdsaSha384 =
+  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
+    return await crypto
+      .createVerify("SHA384")
+      .update(data)
+      .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
+  };
+
+export const signRsaPssSha512 =
+  (privateKey: crypto.KeyObject) =>
+  async (data: Uint8Array): Promise<Uint8Array> => {
+    return await crypto.createSign("SHA512").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
+  };
+
+export const verifyRsaPssSha512 =
+  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
+    return await crypto
+      .createVerify("SHA512")
       .update(data)
       .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
   };
@@ -30,6 +60,24 @@ export const verifyEd25519 =
   (keyMap: { [keyid: string]: crypto.KeyObject }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
     return await crypto.verify(null, data, keyMap[keyid], signature);
+  };
+
+export const signHmacSha256 =
+  (privateKey: crypto.KeyObject) =>
+  async (data: Uint8Array): Promise<Uint8Array> => {
+    const hmac = crypto.createHmac("SHA512", privateKey);
+    hmac.write(data);
+    hmac.end();
+    return hmac.read().toString("hex");
+  };
+
+export const verifyHmacSha256 =
+  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
+    const hmac = crypto.createHmac("SHA512", keyMap[keyid]);
+    hmac.write(data);
+    hmac.end();
+    return hmac.read().toString("hex") == signature; // TODO verify if this compares properly
   };
 
 type keyMap = {
@@ -50,13 +98,25 @@ export const algMap: {
     verify: VerifyFunctionWrapper;
   };
 } = {
-  // ["rsa-pss-sha512"] = "rsa-pss-sha512",
-  // ["rsa-v1_5-sha256"] = "rsa-v1_5-sha256",
-  // ["hmac-sha256"] = "hmac-sha256",
-  // ["ecdsa-p384-sha384"] = "ecdsa-p384-sha384",
+  ["rsa-pss-sha512"]: {
+    sign: signRsaPssSha512,
+    verify: verifyRsaPssSha512,
+  },
+  ["rsa-v1_5-sha256"]: {
+    sign: signSha256,
+    verify: verifySha256,
+  },
+  ["hmac-sha256"]: {
+    sign: signHmacSha256,
+    verify: verifyHmacSha256,
+  },
+  ["ecdsa-p384-sha384"]: {
+    sign: signEcdsaSha384,
+    verify: verifyEcdsaSha384,
+  },
   ["ecdsa-p256-sha256"]: {
-    sign: signECDSA,
-    verify: verifyECDSA,
+    sign: signSha256,
+    verify: verifySha256,
   },
   ["ed25519"]: {
     sign: signEd25519,

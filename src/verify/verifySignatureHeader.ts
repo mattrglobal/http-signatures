@@ -75,11 +75,13 @@ export const verifySignatureHeader = (
   try {
     // need to make sure signature header is in lower case
     // SuperTest set() convert header to lower case
+
     const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
     const { signature: signatureString, "signature-input": signatureInputString } = lowerCaseHttpHeaders;
     if (typeof signatureString !== "string" || typeof signatureInputString !== "string") {
       return okAsync(false);
     }
+
     const getSignatureDataResult = getSignatureData(signatureString, signatureInputString);
     if (getSignatureDataResult.isErr()) {
       return okAsync(false);
@@ -97,19 +99,12 @@ export const verifySignatureHeader = (
         continue;
       }
 
-      const {
-        coveredFields: coveredFields = [],
-        keyid,
-        created,
-        alg,
-        signature,
-        expires,
-        nonce,
-        context,
-      } = signatureSet[signatureId];
+      const { coveredFields: coveredFields = [], parameters, signature } = signatureSet[signatureId];
 
       const currentTime = Math.floor(Date.now() / 1000);
       const coveredFieldNames = coveredFields.map((item) => item[0]);
+
+      const expires = parameters.get("expires");
 
       if (expires && expires < currentTime) {
         return okAsync(false);
@@ -135,6 +130,7 @@ export const verifySignatureHeader = (
       }
 
       const verifyDataRes = generateVerifyData({
+        coveredFieldNames,
         method,
         url,
         httpHeaders: httpHeadersToVerify,
@@ -142,6 +138,7 @@ export const verifySignatureHeader = (
       if (verifyDataRes.isErr()) {
         return okAsync(false);
       }
+
       const { value: verifyData } = verifyDataRes;
 
       const digest = verifyData["content-digest"];
@@ -156,16 +153,16 @@ export const verifySignatureHeader = (
       }
       const { value: sortedEntries } = sortedEntriesRes;
 
+      // generate signature params currently orders the signature parameters consistently, but if someone else
+      // has ordered them differently, that's a problem
+
       const signatureParams = generateSignatureParams({
         data: sortedEntries,
-        alg,
-        keyid,
-        created,
-        expires,
-        nonce,
-        context,
+        parameters,
         ...(existingSignatureItem ? { existingSignatureKey } : {}),
       });
+
+      const keyid: string = parameters.get("keyid") as string;
 
       const bytesToVerify = generateSignatureBytes([
         ...sortedEntries,
