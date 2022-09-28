@@ -104,11 +104,11 @@ export const algMap: {
     verify: VerifyFunctionWrapper;
   };
 } = {
-  // TODO implement remaining algorithms and corresponding tests from the spec
   ["rsa-pss-sha512"]: {
     sign: signRsaPssSha512,
     verify: verifyRsaPssSha512,
   },
+  // TODO implement remaining algorithms and corresponding tests from the spec
   // ["rsa-v1_5-sha256"]: {
   //   sign: signSha256,
   //   verify: verifySha256,

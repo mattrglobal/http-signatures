@@ -393,7 +393,7 @@ describe("createSignatureHeader", () => {
       signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
       expires: 1577836801,
       nonce: "abcdefg",
-      context: "application specific context",
+      tag: "application specific context",
     };
 
     const result = await createSignatureHeader(options);
@@ -402,7 +402,7 @@ describe("createSignatureHeader", () => {
       // we can't compare the signature directly as ECDSA is not deterministic
       signature: expect.stringMatching(/^sig1=*.*:$/),
       signatureInput:
-        'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;expires=1577836801;nonce="abcdefg";alg="ecdsa-p256-sha256";keyid="key1";context="application specific context"',
+        'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;expires=1577836801;nonce="abcdefg";alg="ecdsa-p256-sha256";keyid="key1";tag="application specific context"',
       digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
     });
   });
@@ -469,7 +469,14 @@ describe("createSignatureHeader", () => {
         "Signature-Input":
           'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="ecdsa-p256-sha256";keyid="key1"',
       },
-      existingSignatureKey: "sig1",
+      coveredFields: [
+        ["@request-target", new Map()],
+        ["@method", new Map()],
+        ["content-digest", new Map()],
+        ["signature", new Map([["key", "sig1"]])],
+        ["content-type", new Map()],
+        ["host", new Map()],
+      ],
     };
 
     const resultTwo = await createSignatureHeader(optionsTwo);
@@ -493,7 +500,7 @@ describe("createSignatureHeader", () => {
     const result = await createSignatureHeader(options);
 
     expect(unwrap(result)).toMatchObject({
-      digest: "sha-256=:qoxd-emcQclK6Mp84PxOeUumOdjbx-mSW_pxhEXlcno=:",
+      digest: "sha-256=:qoxd+emcQclK6Mp84PxOeUumOdjbx+mSW/pxhEXlcno=:",
       signatureInput: `sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="ecdsa-p256-sha256";keyid="key1"`,
     });
   });

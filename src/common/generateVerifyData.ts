@@ -30,7 +30,7 @@ type GenerateVerifyDataEntriesOptions = {
  */
 export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyDataEntry[], string> => {
   const { coveredFields, url, httpHeaders, method } = options;
-  const { host, path, query: queryString } = urlParser.parse(url);
+  const { path, pathname, query: queryString, host } = urlParser.parse(url);
   const { query: queryObj } = urlParser.parse(url, true);
 
   // Checks if a header key is duplicated with a different case eg. no instances of key and kEy
@@ -40,7 +40,12 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
 
   const coveredFieldNames = coveredFields.map((item) => item[0]);
 
-  if (host === null || path === null || (coveredFieldNames.includes("@query") && queryString == null)) {
+  if (
+    host === null ||
+    pathname === null ||
+    path == null ||
+    (coveredFieldNames.includes("@query") && queryString == null)
+  ) {
     return err("Cannot resolve host, path and/or query from url");
   }
 
@@ -64,21 +69,21 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
           case "@authority":
             newEntry = [fieldName, host];
             break;
-          case "@targe-uri":
+          case "@target-uri":
             newEntry = [fieldName, url];
             break;
           case "@path":
-            newEntry = [fieldName, path];
+            newEntry = [fieldName, pathname];
             break;
           case "@query":
-            newEntry = [fieldName, queryString ?? ""];
+            newEntry = [fieldName, `?${queryString}` ?? ""];
             break;
           case "@query-param":
             queryParamName = field[1].get("name") as string | undefined;
             newEntry = queryParamName ? [fieldName, queryObj[queryParamName]] : [fieldName, ""];
             break;
           default:
-            newEntry = [fieldName, ""]; // TODO error handling?
+            newEntry = [fieldName, ""];
         }
       } else {
         newEntry = [fieldName, lowerCaseHttpHeaders[fieldName]];
@@ -94,16 +99,11 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
 
 export type GenereateSignatureParamsOptions = {
   readonly data: VerifyDataEntry[];
+  readonly coveredFields: [string, Parameters][];
   readonly parameters: Parameters;
-  readonly existingSignatureKey?: string;
 };
 export const generateSignatureParams = (options: GenereateSignatureParamsOptions): InnerList => {
-  const { data, existingSignatureKey, parameters } = options;
+  const { data, coveredFields, parameters } = options;
 
-  return [
-    data.map(([key]: VerifyDataEntry) =>
-      key == "signature" && existingSignatureKey ? [key, new Map([["key", existingSignatureKey]])] : [key, new Map()]
-    ),
-    parameters,
-  ];
+  return [data.map(([key]: VerifyDataEntry, index: number) => [key, coveredFields[index][1]]), parameters];
 };

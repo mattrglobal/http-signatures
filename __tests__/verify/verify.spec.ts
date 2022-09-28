@@ -261,7 +261,7 @@ describe("verifySignatureHeader", () => {
       signer: { keyid: "key1", sign: signSha256(ecdsap256KeyPair.privateKey) },
       expires: 10000000000,
       nonce: "abcd",
-      context: "application specific context",
+      tag: "application specific context",
     };
     await createSignatureHeader(createOptions).then((res) => {
       expect(res.isOk()).toBe(true);
@@ -391,7 +391,14 @@ describe("verifySignatureHeader", () => {
         ["Signature-Input"]: createSignatureResult.signatureInput,
       },
       signer: { keyid: "key2", sign: signSha256(ecdsap256KeyPairTwo.privateKey) },
-      existingSignatureKey: "sig1",
+      coveredFields: [
+        ["@request-target", new Map()],
+        ["@method", new Map()],
+        ["content-digest", new Map()],
+        ["signature", new Map([["key", "sig1"]])],
+        ["content-type", new Map()],
+        ["host", new Map()],
+      ],
     };
 
     const signatureOverAnotherSignatureResult = await createSignatureHeader(signatureOverAnotherSignatureOptions);
@@ -705,24 +712,30 @@ describe("verifySignatureHeader", () => {
     expect(unwrap(result)).toEqual(true);
   });
 
-  // it("should be able to verify the signature from test B.2.2. in the spec", async () => {
-  //   // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
-  //   const rsa_pss_key = crypto.createPublicKey({key : examplePublicRsaPssKey})
+  it("should be able to verify the signature from test B.2.3. in the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-full-coverage-using-rsa-pss
+    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey });
 
-  //   const result = await verifySignatureHeader({
-  //     httpHeaders: {
-  //       Signature: "sig-b22=:LjbtqUbfmvjj5C5kr1Ugj4PmLYvx9wVjZvD9GsTT4F7GrcQEdJzgI9qHxICagShLRiLMlAJjtq6N4CDfKtjvuJyE5qH7KT8UCMkSowOB4+ECxCmT8rtAmj/0PIXxi0A0nxKyB09RNrCQibbUjsLS/2YyFYXEu4TRJQzRw1rLEuEfY17SARYhpTlaqwZVtR8NV7+4UKkjqpcAoFqWFQh62s7Cl+H2fjBSpqfZUJcsIk4N6wiKYd4je2U/lankenQ99PZfB4jY3I5rSV2DSBVkSFsURIjYErOs0tFTQosMTAoxk//0RoKUqiYY8Bh0aaUEb0rQl3/XaVe4bXTugEjHSw==:",
-  //       "Signature-Input": 'sig-b22=("@authority" "content-digest" "@query-param";name="Pet");created=1618884473;keyid="test-key-rsa-pss";tag="header-example"',
-  //       "Content-Digest": "sha-512=:WZDPaVn/7XgHaAy8pmojAkGWoRx2UFChF41A2svX+TaPm+AbwAgBWnrIiYllu7BNNyealdVLvRwEmTHWXvJwew==:",
-  //     },
-  //     method: "POST",
-  //     url: 'http://example.com/foo?Pet=dog',
-  //     body: `{"hello": "world"}`,
-  //     verifier: { verify: verifyRsaPssSha512({'test-key-rsa-pss': rsa_pss_key}) },
-  //   });
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        Signature:
+          "sig-b23=:bbN8oArOxYoyylQQUU6QYwrTuaxLwjAC9fbY2F6SVWvh0yBiMIRGOnMYwZ/5MR6fb0Kh1rIRASVxFkeGt683+qRpRRU5p2voTp768ZrCUb38K0fUxN0O0iC59DzYx8DFll5GmydPxSmme9v6ULbMFkl+V5B1TP/yPViV7KsLNmvKiLJH1pFkh/aYA2HXXZzNBXmIkoQoLd7YfW91kE9o/CCoC1xMy7JA1ipwvKvfrs65ldmlu9bpG6A9BmzhuzF8Eim5f8ui9eH8LZH896+QIF61ka39VBrohr9iyMUJpvRX2Zbhl5ZJzSRxpJyoEZAFL2FUo5fTIztsDZKEgM4cUA==:",
+        "Signature-Input":
+          'sig-b23=("date" "@method" "@path" "@query" "@authority" "content-type" "content-digest" "content-length");created=1618884473;keyid="test-key-rsa-pss"',
+        "Content-Digest":
+          "sha-512=:WZDPaVn/7XgHaAy8pmojAkGWoRx2UFChF41A2svX+TaPm+AbwAgBWnrIiYllu7BNNyealdVLvRwEmTHWXvJwew==:",
+        Date: "Tue, 20 Apr 2021 02:07:55 GMT",
+        ["Content-Type"]: "application/json",
+        ["Content-Length"]: "18",
+      },
+      method: "POST",
+      url: "http://example.com/foo?param=Value&Pet=dog",
+      body: `{"hello": "world"}`,
+      verifier: { verify: verifyRsaPssSha512({ "test-key-rsa-pss": rsa_pss_key }) },
+    });
 
-  //   expect(unwrap(result)).toEqual(true);
-  // })
+    expect(unwrap(result)).toEqual(true);
+  });
 
   it("should be able to verify the signature from test B.2.5. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-request-using-hma

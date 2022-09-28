@@ -142,14 +142,20 @@ export const verifySignatureHeader = (
 
       const digestEntry = verifyData.find((e) => e[0] == "content-digest");
       // Verify the digest if it's present
-      if (digestEntry !== undefined && !verifyDigest(digestEntry[1] as string, body)) {
-        return okAsync(false);
+      if (digestEntry !== undefined && digestEntry[1] !== undefined) {
+        if (Array.isArray(digestEntry[1])) {
+          return okAsync(false);
+        }
+        const [digestAlg] = parseDictionary(digestEntry[1]).keys();
+        if (!verifyDigest(digestEntry[1] as string, body, digestAlg)) {
+          return okAsync(false);
+        }
       }
 
       const signatureParams = generateSignatureParams({
         data: verifyData,
+        coveredFields,
         parameters,
-        ...(existingSignatureItem ? { existingSignatureKey } : {}),
       });
 
       const keyid: string = parameters.get("keyid") as string;

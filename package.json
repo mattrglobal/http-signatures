@@ -68,6 +68,7 @@
   "dependencies": {
     "@stablelib/base64": "1.0.1",
     "@stablelib/sha256": "1.0.1",
+    "@stablelib/sha512": "1.0.1",
     "buffer": "6.0.3",
     "canonicalize": "1.0.8",
     "neverthrow": "3.0.0",

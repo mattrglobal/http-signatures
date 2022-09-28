@@ -62,10 +62,6 @@ export type CreateSignatureHeaderOptions = {
    */
   readonly body?: Record<string, unknown> | string;
   /**
-   * If it's desired to sign over a previous signature, the key of the signature must be specified
-   */
-  readonly existingSignatureKey?: string;
-  /**
    * An optional expiry param as an Integer UNIX timestamp value, to indicate to the verifier a time after which this signature should no longer be trusted.
    * Sub- second precision is not supported.
    */
@@ -75,9 +71,9 @@ export type CreateSignatureHeaderOptions = {
    */
   readonly nonce?: string;
   /**
-   * An optional application specific context parameter
+   * An optional application specific tag parameter to provide additional context for the signature
    */
-  readonly context?: string;
+  readonly tag?: string;
   /**
    * The HTTP message signature algorithm from the HTTP Message Signature Algorithm Registry, as a String value.
    */
@@ -104,16 +100,14 @@ export const createSignatureHeader = async (
       httpHeaders,
       body,
       url,
-      existingSignatureKey,
       expires,
       nonce,
-      context,
+      tag,
       alg,
       coveredFields = [
         "@request-target",
         "@method",
         ...(body ? ["content-digest"] : []),
-        ...(existingSignatureKey ? ["signature"] : []),
         ...(
           httpHeaders &&
           Object.keys(httpHeaders)
@@ -171,7 +165,7 @@ export const createSignatureHeader = async (
       sigKeyToUse = signatureId ?? "sig1";
     }
 
-    const digest = body ? generateDigest(body) : undefined;
+    const digest = body ? generateDigest(body, "sha-256") : undefined;
 
     const verifyDataRes = generateVerifyData({
       coveredFields,
@@ -182,27 +176,23 @@ export const createSignatureHeader = async (
       },
       url,
       method,
-      existingSignatureKey,
     });
     if (verifyDataRes.isErr()) {
       return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
 
-    // verify data now has duplicate keys, and already knows about the covered fields.
-    // instead of having a second step to order them
-    // just return an ordered set of entries from generateVerifyData
-    // and then remove the sort step entirely
+    // pass in covered fields as well, and find a way to link it to verify data (index is technically fine since it's 1-1?)
 
     const signatureParams = generateSignatureParams({
       data: verifyDataRes.value,
-      existingSignatureKey,
+      coveredFields,
       parameters: new Map<string, string | number>([
         ["created", created],
         ...(expires ? [["expires", expires] as const] : []),
         ...(nonce ? [["nonce", nonce] as const] : []),
         ...(alg ? [["alg", alg] as const] : []),
         ["keyid", keyid],
-        ...(context ? [["context", context] as const] : []),
+        ...(tag ? [["tag", tag] as const] : []),
       ]),
     });
 
