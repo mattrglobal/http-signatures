@@ -3,29 +3,38 @@
  * All rights reserved
  * Confidential and proprietary
  */
+import { Parameters } from "structured-headers";
+
 import { generateVerifyData } from "../../src/common";
 import { unwrap } from "../../src/errors";
 
 describe("generateVerifyData", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
 
+  const coveredFields: [string, Parameters][] = [
+    ["@request-target", new Map()],
+    ["@method", new Map()],
+    ["header1", new Map()],
+    ["header2", new Map()],
+  ];
+
   const validOptions = {
     method: "GET",
     created: Date.now(),
     url: "http://www.test.com/test?query=1",
     httpHeaders: { header1: "value", HEADER2: "value" },
-    coveredFieldNames: ["@request-target", "@method", "header1", "header2"],
+    coveredFields,
   };
 
-  it("Should return an object containing custom spec values and headers when given valid input", (done) => {
+  it("Should return a list of entries containing custom spec values and headers when given valid input", (done) => {
     const result = generateVerifyData(validOptions);
 
-    expect(unwrap(result)).toMatchObject({
-      ["@request-target"]: "/test?query=1",
-      ["@method"]: "GET",
-      header1: "value",
-      header2: "value",
-    });
+    expect(unwrap(result)).toEqual([
+      ["@request-target", "/test?query=1"],
+      ["@method", "GET"],
+      ["header1", "value"],
+      ["header2", "value"],
+    ]);
     done();
   });
 
@@ -55,7 +64,7 @@ describe("generateVerifyData", () => {
       return done("result is not an error");
     }
 
-    expect(result.error).toEqual("Cannot resolve host and path from url");
+    expect(result.error).toEqual("Cannot resolve host, path and/or query from url");
     done();
   });
 });

@@ -45,5 +45,4 @@ export const generateSignatureBytes = pipe(
 export * from "./generateDigest";
 export * from "./generateVerifyData";
 export * from "./getSignatureData";
-export * from "./generateSortedVerifyDataEntries";
 export * from "./types";

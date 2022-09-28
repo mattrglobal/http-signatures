@@ -6,13 +6,12 @@
 
 import { encode as base64Encode } from "@stablelib/base64";
 import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
-import { parseDictionary, Item, InnerList, serializeDictionary, serializeList } from "structured-headers";
+import { parseDictionary, Item, InnerList, serializeDictionary, serializeList, Parameters } from "structured-headers";
 
 import {
   generateDigest,
   generateSignatureBytes,
   generateSignatureParams,
-  generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
@@ -86,7 +85,7 @@ export type CreateSignatureHeaderOptions = {
   /**
    * An optional list of field names to cover in the signature. If omitted, a default list is used.
    */
-  readonly coveredFieldNames?: string[];
+  readonly coveredFields?: [string, Parameters][];
 };
 
 /**
@@ -110,7 +109,7 @@ export const createSignatureHeader = async (
       nonce,
       context,
       alg,
-      coveredFieldNames = [
+      coveredFields = [
         "@request-target",
         "@method",
         ...(body ? ["content-digest"] : []),
@@ -121,7 +120,7 @@ export const createSignatureHeader = async (
             .filter((header) => header.toLowerCase() != "signature" && header.toLowerCase() != "signature-input")
             .map((a) => a.toLowerCase())
         ).sort(),
-      ],
+      ].map((a) => [a, new Map()]),
     } = options;
 
     const created = Math.floor(Date.now() / 1000);
@@ -175,7 +174,7 @@ export const createSignatureHeader = async (
     const digest = body ? generateDigest(body) : undefined;
 
     const verifyDataRes = generateVerifyData({
-      coveredFieldNames: coveredFieldNames,
+      coveredFields,
       httpHeaders: {
         ...httpHeaders,
         // Append the digest if necessary
@@ -189,15 +188,13 @@ export const createSignatureHeader = async (
       return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
 
-    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyDataRes.value, coveredFieldNames);
-    if (sortedEntriesRes.isErr()) {
-      return err({ type: "MalformedInput", message: sortedEntriesRes.error });
-    }
-
-    const { value: sortedEntries } = sortedEntriesRes;
+    // verify data now has duplicate keys, and already knows about the covered fields.
+    // instead of having a second step to order them
+    // just return an ordered set of entries from generateVerifyData
+    // and then remove the sort step entirely
 
     const signatureParams = generateSignatureParams({
-      data: sortedEntries,
+      data: verifyDataRes.value,
       existingSignatureKey,
       parameters: new Map<string, string | number>([
         ["created", created],
@@ -210,7 +207,7 @@ export const createSignatureHeader = async (
     });
 
     const bytesToSign = generateSignatureBytes([
-      ...sortedEntries,
+      ...verifyDataRes.value,
       ["@signature-params", serializeList([signatureParams])],
     ]);
     const signResult = await ResultAsync.fromPromise(sign(bytesToSign), (e) => e);

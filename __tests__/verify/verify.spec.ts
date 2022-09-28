@@ -21,6 +21,7 @@ import {
   verifySha256,
   verifyEd25519,
   verifyHmacSha256,
+  verifyRsaPssSha512,
 } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
@@ -31,6 +32,15 @@ let ecdsap256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObjec
 let ecdsap256KeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let keyMap: { [keyid: string]: crypto.KeyObject };
+
+const examplePublicRsaPssKey = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr4tmm3r20Wd/PbqvP1s2
++QEtvpuRaV8Yq40gjUR8y2Rjxa6dpG2GXHbPfvMs8ct+Lh1GH45x28Rw3Ry53mm+
+oAXjyQ86OnDkZ5N8lYbggD4O3w6M6pAvLkhk95AndTrifbIFPNU8PPMO7OyrFAHq
+gDsznjPFmTOtCEcN2Z1FpWgchwuYLPL+Wokqltd11nqqzi+bJ9cvSKADYdUAAN5W
+Utzdpiy6LbTgSxP7ociU4Tn0g5I6aDZJ7A8Lzo0KSyZYoA485mqcO0GVAdVw9lq4
+aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
+2wIDAQAB\n-----END PUBLIC KEY-----`;
 
 describe("verifyRequest", () => {
   Date.now = jest.fn(() => 1577836800); //01.01.2020
@@ -676,8 +686,46 @@ describe("verifySignatureHeader", () => {
     });
   });
 
+  it("should be able to verify the signature from test B.2.1. in the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
+    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey });
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        Signature:
+          "sig-b21=:d2pmTvmbncD3xQm8E9ZV2828BjQWGgiwAaw5bAkgibUopemLJcWDy/lkbbHAve4cRAtx31Iq786U7it++wgGxbtRxf8Udx7zFZsckzXaJMkA7ChG52eSkFxykJeNqsrWH5S+oxNFlD4dzVuwe8DhTSja8xxbR/Z2cOGdCbzR72rgFWhzx2VjBqJzsPLMIQKhO4DGezXehhWwE56YCE+O6c0mKZsfxVrogUvA4HELjVKWmAvtl6UnCh8jYzuVG5WSb/QEVPnP5TmcAnLH1g+s++v6d4s8m0gCw1fV5/SITLq9mhho8K3+7EPYTU8IU1bLhdxO5Nyt8C8ssinQ98Xw9Q==:",
+        "Signature-Input": 'sig-b21=();created=1618884473;keyid="test-key-rsa-pss";nonce="b3k2pp5k7z-50gnwp.yemd"',
+      },
+      method: "POST",
+      url: "http://example.com/foo?param=Value&Pet=dog",
+      body: `{"hello": "world"}`,
+      verifier: { verify: verifyRsaPssSha512({ "test-key-rsa-pss": rsa_pss_key }) },
+    });
+
+    expect(unwrap(result)).toEqual(true);
+  });
+
+  // it("should be able to verify the signature from test B.2.2. in the spec", async () => {
+  //   // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
+  //   const rsa_pss_key = crypto.createPublicKey({key : examplePublicRsaPssKey})
+
+  //   const result = await verifySignatureHeader({
+  //     httpHeaders: {
+  //       Signature: "sig-b22=:LjbtqUbfmvjj5C5kr1Ugj4PmLYvx9wVjZvD9GsTT4F7GrcQEdJzgI9qHxICagShLRiLMlAJjtq6N4CDfKtjvuJyE5qH7KT8UCMkSowOB4+ECxCmT8rtAmj/0PIXxi0A0nxKyB09RNrCQibbUjsLS/2YyFYXEu4TRJQzRw1rLEuEfY17SARYhpTlaqwZVtR8NV7+4UKkjqpcAoFqWFQh62s7Cl+H2fjBSpqfZUJcsIk4N6wiKYd4je2U/lankenQ99PZfB4jY3I5rSV2DSBVkSFsURIjYErOs0tFTQosMTAoxk//0RoKUqiYY8Bh0aaUEb0rQl3/XaVe4bXTugEjHSw==:",
+  //       "Signature-Input": 'sig-b22=("@authority" "content-digest" "@query-param";name="Pet");created=1618884473;keyid="test-key-rsa-pss";tag="header-example"',
+  //       "Content-Digest": "sha-512=:WZDPaVn/7XgHaAy8pmojAkGWoRx2UFChF41A2svX+TaPm+AbwAgBWnrIiYllu7BNNyealdVLvRwEmTHWXvJwew==:",
+  //     },
+  //     method: "POST",
+  //     url: 'http://example.com/foo?Pet=dog',
+  //     body: `{"hello": "world"}`,
+  //     verifier: { verify: verifyRsaPssSha512({'test-key-rsa-pss': rsa_pss_key}) },
+  //   });
+
+  //   expect(unwrap(result)).toEqual(true);
+  // })
+
   it("should be able to verify the signature from test B.2.5. in the spec", async () => {
-    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-signing-a-request-using-hma
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-request-using-hma
 
     const b64secret = "uzvJfB4u3N0Jy4T7NZ75MDVcr8zSTInedJtkgcu46YW4XByzNJjxBdtjUkdJPBtbmHhIDi6pcl8jsasjlTMtDQ==";
     const decodeResult = common.decodeBase64(b64secret);
@@ -704,8 +752,8 @@ describe("verifySignatureHeader", () => {
     expect(unwrap(result)).toEqual(true);
   });
 
-  it("should pass test case B.2.6. from the spec", async () => {
-    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-signing-a-request-using-ed2
+  it("should be able to verify the signature from test B.2.6. in the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-request-using-ed2
     const ed25519TestKey = crypto.createPublicKey(
       `-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAJrQLj5P/89iXES9+vFgrIy29clF9CC/oPPsw3c5D0bs=\n-----END PUBLIC KEY-----`
     );

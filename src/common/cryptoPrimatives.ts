@@ -56,7 +56,10 @@ export const verifyEcdsaSha384 =
 export const signRsaPssSha512 =
   (privateKey: crypto.KeyObject) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
-    return await crypto.createSign("SHA512").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
+    return await crypto
+      .createSign("SHA512")
+      .update(data)
+      .sign({ key: privateKey, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PSS_PADDING });
   };
 
 export const verifyRsaPssSha512 =
@@ -65,7 +68,10 @@ export const verifyRsaPssSha512 =
     return crypto
       .createVerify("SHA512")
       .update(data)
-      .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
+      .verify(
+        { key: keyMap[keyid], dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PSS_PADDING },
+        signature
+      );
   };
 
 export const signEd25519 =
@@ -99,10 +105,10 @@ export const algMap: {
   };
 } = {
   // TODO implement remaining algorithms and corresponding tests from the spec
-  // ["rsa-pss-sha512"]: {
-  //   sign: signRsaPssSha512,
-  //   verify: verifyRsaPssSha512,
-  // },
+  ["rsa-pss-sha512"]: {
+    sign: signRsaPssSha512,
+    verify: verifyRsaPssSha512,
+  },
   // ["rsa-v1_5-sha256"]: {
   //   sign: signSha256,
   //   verify: verifySha256,

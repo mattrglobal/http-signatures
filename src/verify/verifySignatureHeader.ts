@@ -12,7 +12,6 @@ import {
   decodeBase64,
   generateSignatureParams,
   generateSignatureBytes,
-  generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
@@ -130,7 +129,7 @@ export const verifySignatureHeader = (
       }
 
       const verifyDataRes = generateVerifyData({
-        coveredFieldNames,
+        coveredFields,
         method,
         url,
         httpHeaders: httpHeadersToVerify,
@@ -141,20 +140,14 @@ export const verifySignatureHeader = (
 
       const { value: verifyData } = verifyDataRes;
 
-      const digest = verifyData["content-digest"];
+      const digestEntry = verifyData.find((e) => e[0] == "content-digest");
       // Verify the digest if it's present
-      if (digest !== undefined && !verifyDigest(digest, body)) {
+      if (digestEntry !== undefined && !verifyDigest(digestEntry[1] as string, body)) {
         return okAsync(false);
       }
-
-      const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFieldNames);
-      if (sortedEntriesRes.isErr()) {
-        return okAsync(false);
-      }
-      const { value: sortedEntries } = sortedEntriesRes;
 
       const signatureParams = generateSignatureParams({
-        data: sortedEntries,
+        data: verifyData,
         parameters,
         ...(existingSignatureItem ? { existingSignatureKey } : {}),
       });
@@ -162,7 +155,7 @@ export const verifySignatureHeader = (
       const keyid: string = parameters.get("keyid") as string;
 
       const bytesToVerify = generateSignatureBytes([
-        ...sortedEntries,
+        ...verifyData,
         ["@signature-params", serializeList([signatureParams])],
       ]);
 

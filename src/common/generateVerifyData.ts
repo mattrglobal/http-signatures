@@ -9,21 +9,15 @@ import { equals, keys, length, map, not, pipe, toLower, uniq } from "ramda";
 import { InnerList, Parameters } from "structured-headers";
 import urlParser from "url";
 
-import { VerifyData, VerifyDataEntry } from "./types";
+import { VerifyDataEntry } from "./types";
 
 export const reduceKeysToLowerCase = <T extends Record<string, unknown>>(obj: T): Record<string, T[keyof T]> =>
   Object.entries(obj).reduce((acc, [k, v]) => ({ ...acc, [k.toLowerCase()]: v }), {});
 const isObjectKeysIgnoreCaseDuplicated = (obj: Record<string, unknown>): boolean =>
   pipe(keys, map(toLower), uniq, length, equals(keys(obj).length), not)(obj);
 
-type DerivedComponents = {
-  readonly "@request-target"?: string;
-  readonly "@method"?: string;
-  key?: string;
-};
-
 type GenerateVerifyDataEntriesOptions = {
-  readonly coveredFieldNames: string[];
+  readonly coveredFields: [string, Parameters][];
   readonly method: string;
   readonly url: string;
   readonly httpHeaders: { readonly [key: string]: string | string[] | undefined };
@@ -34,47 +28,68 @@ type GenerateVerifyDataEntriesOptions = {
  * (as per https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-12.html#name-derived-components)
  * note we return it as entries to guarantee order consistency
  */
-export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyData, string> => {
-  const { coveredFieldNames, url, httpHeaders, method, existingSignatureKey } = options;
-  const { host, path, query } = urlParser.parse(url);
+export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyDataEntry[], string> => {
+  const { coveredFields, url, httpHeaders, method } = options;
+  const { host, path, query: queryString } = urlParser.parse(url);
+  const { query: queryObj } = urlParser.parse(url, true);
 
   // Checks if a header key is duplicated with a different case eg. no instances of key and kEy
   if (isObjectKeysIgnoreCaseDuplicated(httpHeaders)) {
     return err("Duplicate case insensitive header keys detected, specify an array of values instead");
   }
 
-  if (host === null || path === null) {
-    return err("Cannot resolve host and path from url");
+  const coveredFieldNames = coveredFields.map((item) => item[0]);
+
+  if (host === null || path === null || (coveredFieldNames.includes("@query") && queryString == null)) {
+    return err("Cannot resolve host, path and/or query from url");
   }
 
   const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
 
-  const filtered = Object.keys(lowerCaseHttpHeaders)
-    .filter((key: string) => coveredFieldNames.includes(key))
-    .reduce((obj: { [key: string]: string | string[] | undefined }, key: string) => {
-      return {
-        [key]: lowerCaseHttpHeaders[key],
-        ...obj,
-      };
-    }, {});
+  const entries: VerifyDataEntry[] = coveredFields.reduce(
+    (entries: VerifyDataEntry[], field: [string, Parameters]): VerifyDataEntry[] => {
+      const fieldName = field[0].toLowerCase();
 
-  const derivedComponents: DerivedComponents = {
-    ...(coveredFieldNames.includes("@request-target") && { ["@request-target"]: path }),
-    ...(coveredFieldNames.includes("@method") && { "@method": method.toUpperCase() }),
-    ...(coveredFieldNames.includes("@authority") && { "@authority": host }),
-    ...(coveredFieldNames.includes("@target-uri") && { "@target-uri": url }),
-    ...(coveredFieldNames.includes("@path") && { "@path": path }),
-    ...(coveredFieldNames.includes("@query") && { "@query": query }),
-    ...(coveredFieldNames.includes("signature") && existingSignatureKey && { key: existingSignatureKey }),
-  };
-  // TODO implement derived components for scheme, query parameters, status code
+      let newEntry: VerifyDataEntry;
+      let queryParamName: string | undefined;
+      if (fieldName.startsWith("@")) {
+        // derived components
+        switch (fieldName) {
+          case "@request-target":
+            newEntry = [fieldName, path];
+            break;
+          case "@method":
+            newEntry = [fieldName, method.toUpperCase()];
+            break;
+          case "@authority":
+            newEntry = [fieldName, host];
+            break;
+          case "@targe-uri":
+            newEntry = [fieldName, url];
+            break;
+          case "@path":
+            newEntry = [fieldName, path];
+            break;
+          case "@query":
+            newEntry = [fieldName, queryString ?? ""];
+            break;
+          case "@query-param":
+            queryParamName = field[1].get("name") as string | undefined;
+            newEntry = queryParamName ? [fieldName, queryObj[queryParamName]] : [fieldName, ""];
+            break;
+          default:
+            newEntry = [fieldName, ""]; // TODO error handling?
+        }
+      } else {
+        newEntry = [fieldName, lowerCaseHttpHeaders[fieldName]];
+      }
+      return [...entries, newEntry];
+    },
+    []
+  );
+  // TODO implement derived components for scheme, status code
 
-  const dataToSign: VerifyData = {
-    ...derivedComponents,
-    ...filtered,
-  };
-
-  return ok(dataToSign);
+  return ok(entries);
 };
 
 export type GenereateSignatureParamsOptions = {

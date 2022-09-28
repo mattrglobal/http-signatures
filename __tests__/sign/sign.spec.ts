@@ -22,6 +22,7 @@ import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHea
 let ecdsaP256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ecdsaP384KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let rsaPssKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let hmacSharedSecret: crypto.KeyObject;
 
 describe("signRequest", () => {
@@ -144,6 +145,7 @@ describe("signRequest", () => {
     ecdsaP256KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
     ecdsaP384KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-384" });
     ed25519KeyPair = crypto.generateKeyPairSync("ed25519");
+    rsaPssKeyPair = crypto.generateKeyPairSync("rsa-pss", { modulusLength: 4096 });
     hmacSharedSecret = crypto.createSecretKey(crypto.randomBytes(4096));
   });
 
@@ -283,6 +285,41 @@ describe("signRequest", () => {
         signature: expect.stringMatching(/^sig1=*.*:$/),
         "signature-input":
           'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="hmac-sha256";keyid="key1"',
+      },
+    });
+  });
+
+  it("Should sign a request with rsa-pss-sha512 alg", async () => {
+    const requestOptions = {
+      host,
+      port,
+      path: "/test",
+      method: "GET",
+      headers: {
+        "content-type": "text/plain",
+      },
+    };
+
+    const signOptions = {
+      alg: AlgorithmTypes["rsa-pss-sha512"],
+      key: rsaPssKeyPair.privateKey,
+      keyid: "key1",
+      data: `{"Hello": "World"}`,
+    };
+
+    const res = await request(requestOptions, signOptions);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers).toEqual({
+      connection: "close",
+      date: expect.any(String),
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
+    });
+    expect(res.body).toMatchObject({
+      headers: {
+        signature: expect.stringMatching(/^sig1=*.*:$/),
+        "signature-input":
+          'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="rsa-pss-sha512";keyid="key1"',
       },
     });
   });
@@ -482,7 +519,7 @@ describe("createSignatureHeader", () => {
   });
 
   it("Should be able to create a minimal signature", async () => {
-    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-minimal-signature-using-rsa
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
     Date.now = jest.fn(() => 1618884473000);
 
     const exampleKey = crypto.createPrivateKey({
@@ -519,7 +556,7 @@ describe("createSignatureHeader", () => {
 
     const options: CreateSignatureHeaderOptions = {
       signer: { keyid: "test-key-rsa-pss", sign: signRsaPssSha512(exampleKey) },
-      coveredFieldNames: [],
+      coveredFields: [],
       nonce: "b3k2pp5k7z-50gnwp.yemd",
       signatureId: "sig-b21",
       url: "http://example.com/foo?param=value&pet=dog",
@@ -542,7 +579,7 @@ describe("createSignatureHeader", () => {
   });
 
   it("should be able to recreate the signature from test case B.2.5. in the spec", async () => {
-    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-signing-a-request-using-hma
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-request-using-hma
 
     Date.now = jest.fn(() => 1618884473000);
     const b64secret = "uzvJfB4u3N0Jy4T7NZ75MDVcr8zSTInedJtkgcu46YW4XByzNJjxBdtjUkdJPBtbmHhIDi6pcl8jsasjlTMtDQ==";
@@ -563,7 +600,11 @@ describe("createSignatureHeader", () => {
       method: "POST",
       url: "http://example.com/foo",
       signatureId: "sig-b25",
-      coveredFieldNames: ["date", "@authority", "content-type"],
+      coveredFields: [
+        ["date", new Map()],
+        ["@authority", new Map()],
+        ["content-type", new Map()],
+      ],
       signer: {
         keyid: "test-shared-secret",
         sign: signHmacSha256(key),
