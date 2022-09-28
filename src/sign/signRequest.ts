@@ -26,7 +26,7 @@ export type SignOptions = { alg: AlgorithmTypes; key: KeyObject; keyid: string; 
 type SignRequestOptions<T> = SignOptions & { request: T };
 
 /*
-  Signs an outgoing request. Currently only supports ed25519 and ecdsa algorithms.
+  Signs an outgoing request. Currently does not support rsa-v1_5-sha256.
 */
 export const signRequest = async <T extends ClientRequest | SuperAgentRequest>(
   options: SignRequestOptions<T>

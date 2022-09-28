@@ -712,6 +712,28 @@ describe("verifySignatureHeader", () => {
     expect(unwrap(result)).toEqual(true);
   });
 
+  it("should be able to verify the signature from test B.2.2. in the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
+    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey });
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        Signature:
+          "sig-b22=:LjbtqUbfmvjj5C5kr1Ugj4PmLYvx9wVjZvD9GsTT4F7GrcQEdJzgI9qHxICagShLRiLMlAJjtq6N4CDfKtjvuJyE5qH7KT8UCMkSowOB4+ECxCmT8rtAmj/0PIXxi0A0nxKyB09RNrCQibbUjsLS/2YyFYXEu4TRJQzRw1rLEuEfY17SARYhpTlaqwZVtR8NV7+4UKkjqpcAoFqWFQh62s7Cl+H2fjBSpqfZUJcsIk4N6wiKYd4je2U/lankenQ99PZfB4jY3I5rSV2DSBVkSFsURIjYErOs0tFTQosMTAoxk//0RoKUqiYY8Bh0aaUEb0rQl3/XaVe4bXTugEjHSw==:",
+        "Signature-Input":
+          'sig-b22=("@authority" "content-digest" "@query-param";name="Pet");created=1618884473;keyid="test-key-rsa-pss";tag="header-example"',
+        "Content-Digest":
+          "sha-512=:WZDPaVn/7XgHaAy8pmojAkGWoRx2UFChF41A2svX+TaPm+AbwAgBWnrIiYllu7BNNyealdVLvRwEmTHWXvJwew==:",
+      },
+      method: "POST",
+      url: "http://example.com/foo?Pet=dog",
+      body: `{"hello": "world"}`,
+      verifier: { verify: verifyRsaPssSha512({ "test-key-rsa-pss": rsa_pss_key }) },
+    });
+
+    expect(unwrap(result)).toEqual(true);
+  });
+
   it("should be able to verify the signature from test B.2.3. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-full-coverage-using-rsa-pss
     const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey });

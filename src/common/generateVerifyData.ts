@@ -6,7 +6,7 @@
 
 import { err, ok, Result } from "neverthrow";
 import { equals, keys, length, map, not, pipe, toLower, uniq } from "ramda";
-import { InnerList, Parameters } from "structured-headers";
+import { Item, Parameters } from "structured-headers";
 import urlParser from "url";
 
 import { VerifyDataEntry } from "./types";
@@ -30,7 +30,7 @@ type GenerateVerifyDataEntriesOptions = {
  */
 export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyDataEntry[], string> => {
   const { coveredFields, url, httpHeaders, method } = options;
-  const { path, pathname, query: queryString, host } = urlParser.parse(url);
+  const { path, pathname, query: queryString, host, protocol } = urlParser.parse(url);
   const { query: queryObj } = urlParser.parse(url, true);
 
   // Checks if a header key is duplicated with a different case eg. no instances of key and kEy
@@ -44,16 +44,17 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
     host === null ||
     pathname === null ||
     path == null ||
-    (coveredFieldNames.includes("@query") && queryString == null)
+    (coveredFieldNames.includes("@query") && queryString == null) ||
+    protocol == null
   ) {
-    return err("Cannot resolve host, path and/or query from url");
+    return err("Cannot resolve host, path, protocol and/or query from url");
   }
 
   const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
 
   const entries: VerifyDataEntry[] = coveredFields.reduce(
-    (entries: VerifyDataEntry[], field: [string, Parameters]): VerifyDataEntry[] => {
-      const fieldName = field[0].toLowerCase();
+    (entries: VerifyDataEntry[], field: Item): VerifyDataEntry[] => {
+      const fieldName = field[0] as string;
 
       let newEntry: VerifyDataEntry;
       let queryParamName: string | undefined;
@@ -61,49 +62,41 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
         // derived components
         switch (fieldName) {
           case "@request-target":
-            newEntry = [fieldName, path];
+            newEntry = [field, path];
             break;
           case "@method":
-            newEntry = [fieldName, method.toUpperCase()];
+            newEntry = [field, method.toUpperCase()];
             break;
           case "@authority":
-            newEntry = [fieldName, host];
+            newEntry = [field, host];
             break;
           case "@target-uri":
-            newEntry = [fieldName, url];
+            newEntry = [field, url];
             break;
           case "@path":
-            newEntry = [fieldName, pathname];
+            newEntry = [field, pathname];
             break;
           case "@query":
-            newEntry = [fieldName, `?${queryString}` ?? ""];
+            newEntry = [field, `?${queryString}` ?? ""];
+            break;
+          case "@scheme":
+            newEntry = [field, protocol];
             break;
           case "@query-param":
             queryParamName = field[1].get("name") as string | undefined;
-            newEntry = queryParamName ? [fieldName, queryObj[queryParamName]] : [fieldName, ""];
+            newEntry = queryParamName ? [field, queryObj[queryParamName]] : [field, ""];
             break;
           default:
-            newEntry = [fieldName, ""];
+            newEntry = [field, ""];
         }
       } else {
-        newEntry = [fieldName, lowerCaseHttpHeaders[fieldName]];
+        newEntry = [field, lowerCaseHttpHeaders[fieldName]];
       }
       return [...entries, newEntry];
     },
     []
   );
-  // TODO implement derived components for scheme, status code
+  // TODO implement derived component for status code
 
   return ok(entries);
-};
-
-export type GenereateSignatureParamsOptions = {
-  readonly data: VerifyDataEntry[];
-  readonly coveredFields: [string, Parameters][];
-  readonly parameters: Parameters;
-};
-export const generateSignatureParams = (options: GenereateSignatureParamsOptions): InnerList => {
-  const { data, coveredFields, parameters } = options;
-
-  return [data.map(([key]: VerifyDataEntry, index: number) => [key, coveredFields[index][1]]), parameters];
 };

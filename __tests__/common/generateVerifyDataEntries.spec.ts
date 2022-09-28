@@ -30,10 +30,10 @@ describe("generateVerifyData", () => {
     const result = generateVerifyData(validOptions);
 
     expect(unwrap(result)).toEqual([
-      ["@request-target", "/test?query=1"],
-      ["@method", "GET"],
-      ["header1", "value"],
-      ["header2", "value"],
+      [["@request-target", new Map()], "/test?query=1"],
+      [["@method", new Map()], "GET"],
+      [["header1", new Map()], "value"],
+      [["header2", new Map()], "value"],
     ]);
     done();
   });
@@ -64,7 +64,7 @@ describe("generateVerifyData", () => {
       return done("result is not an error");
     }
 
-    expect(result.error).toEqual("Cannot resolve host, path and/or query from url");
+    expect(result.error).toEqual("Cannot resolve host, path, protocol and/or query from url");
     done();
   });
 });

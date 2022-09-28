@@ -8,6 +8,7 @@ import { decode as base64Decode } from "@stablelib/base64";
 import { Buffer } from "buffer";
 import { err, ok, Result } from "neverthrow";
 import { join, pipe, split } from "ramda";
+import { serializeItem } from "structured-headers";
 
 import { VerifyDataEntry } from "./types";
 
@@ -29,9 +30,9 @@ export const decodeBase64 = (bytes: string): Result<Uint8Array, string> => {
  */
 const generateSignatureBase = (entries: VerifyDataEntry[]): string =>
   entries
-    .map(([key, value]) => {
+    .map(([item, value]) => {
       const processedValue = Array.isArray(value) ? value.join(", ").trim() : value?.trim();
-      return `"${key}": ${processedValue}`;
+      return `${serializeItem(item)}: ${processedValue}`;
     })
     .join("\n");
 export const generateSignatureBytes = pipe(

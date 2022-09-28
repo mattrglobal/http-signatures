@@ -11,10 +11,10 @@ import { parseDictionary, Item, InnerList, serializeDictionary, serializeList, P
 import {
   generateDigest,
   generateSignatureBytes,
-  generateSignatureParams,
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
+  VerifyDataEntry,
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
@@ -181,24 +181,20 @@ export const createSignatureHeader = async (
       return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
 
-    // pass in covered fields as well, and find a way to link it to verify data (index is technically fine since it's 1-1?)
+    const parameters = new Map<string, string | number>([
+      ["created", created],
+      ...(expires ? [["expires", expires] as const] : []),
+      ...(nonce ? [["nonce", nonce] as const] : []),
+      ...(alg ? [["alg", alg] as const] : []),
+      ["keyid", keyid],
+      ...(tag ? [["tag", tag] as const] : []),
+    ]);
 
-    const signatureParams = generateSignatureParams({
-      data: verifyDataRes.value,
-      coveredFields,
-      parameters: new Map<string, string | number>([
-        ["created", created],
-        ...(expires ? [["expires", expires] as const] : []),
-        ...(nonce ? [["nonce", nonce] as const] : []),
-        ...(alg ? [["alg", alg] as const] : []),
-        ["keyid", keyid],
-        ...(tag ? [["tag", tag] as const] : []),
-      ]),
-    });
+    const signatureParams: InnerList = [verifyDataRes.value.map(([item]: VerifyDataEntry) => item), parameters];
 
     const bytesToSign = generateSignatureBytes([
       ...verifyDataRes.value,
-      ["@signature-params", serializeList([signatureParams])],
+      [["@signature-params", new Map()], serializeList([signatureParams])],
     ]);
     const signResult = await ResultAsync.fromPromise(sign(bytesToSign), (e) => e);
 

@@ -6,11 +6,11 @@
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { includes, pickBy, toLower } from "ramda";
-import { parseDictionary, serializeList, serializeDictionary } from "structured-headers";
+import { parseDictionary, serializeList, serializeDictionary, InnerList } from "structured-headers";
 
 import {
   decodeBase64,
-  generateSignatureParams,
+  VerifyDataEntry,
   generateSignatureBytes,
   generateVerifyData,
   HttpHeaders,
@@ -140,7 +140,7 @@ export const verifySignatureHeader = (
 
       const { value: verifyData } = verifyDataRes;
 
-      const digestEntry = verifyData.find((e) => e[0] == "content-digest");
+      const digestEntry = verifyData.find((e) => e[0][0] == "content-digest");
       // Verify the digest if it's present
       if (digestEntry !== undefined && digestEntry[1] !== undefined) {
         if (Array.isArray(digestEntry[1])) {
@@ -152,17 +152,13 @@ export const verifySignatureHeader = (
         }
       }
 
-      const signatureParams = generateSignatureParams({
-        data: verifyData,
-        coveredFields,
-        parameters,
-      });
+      const signatureParams: InnerList = [verifyDataRes.value.map(([item]: VerifyDataEntry) => item), parameters];
 
       const keyid: string = parameters.get("keyid") as string;
 
       const bytesToVerify = generateSignatureBytes([
         ...verifyData,
-        ["@signature-params", serializeList([signatureParams])],
+        [["@signature-params", new Map()], serializeList([signatureParams])],
       ]);
 
       const decodedSignatureRes = decodeBase64(signature);
