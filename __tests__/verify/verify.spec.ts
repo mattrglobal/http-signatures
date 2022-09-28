@@ -15,7 +15,13 @@ import {
   AlgorithmTypes,
 } from "../../src";
 import * as common from "../../src/common";
-import { signSha256, signEd25519, verifySha256, verifyEd25519 } from "../../src/common/cryptoPrimatives";
+import {
+  signSha256,
+  signEd25519,
+  verifySha256,
+  verifyEd25519,
+  verifyHmacSha256,
+} from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 
@@ -668,6 +674,34 @@ describe("verifySignatureHeader", () => {
       type: "VerifyFailed",
       message: "An error occurred when verifying signature header",
     });
+  });
+
+  it("should be able to verify the signature from test B.2.5. in the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-signing-a-request-using-hma
+
+    const b64secret = "uzvJfB4u3N0Jy4T7NZ75MDVcr8zSTInedJtkgcu46YW4XByzNJjxBdtjUkdJPBtbmHhIDi6pcl8jsasjlTMtDQ==";
+    const decodeResult = common.decodeBase64(b64secret);
+    if (decodeResult.isErr()) {
+      throw decodeResult.error;
+    }
+    const { value: secret } = decodeResult;
+
+    const hmacSharedSecret = Buffer.from(secret);
+    const key = crypto.createSecretKey(hmacSharedSecret);
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        Signature: "sig-b25=:pxcQw6G3AjtMBQjwo8XzkZf/bws5LelbaMk5rGIGtE8=:",
+        "Signature-Input": 'sig-b25=("date" "@authority" "content-type");created=1618884473;keyid="test-shared-secret"',
+        "Content-Type": "application/json",
+        date: "Tue, 20 Apr 2021 02:07:55 GMT",
+      },
+      method: "POST",
+      url: "http://example.com/foo",
+      verifier: { verify: verifyHmacSha256({ "test-shared-secret": key }) },
+    });
+
+    expect(unwrap(result)).toEqual(true);
   });
 
   it("should pass test case B.2.6. from the spec", async () => {

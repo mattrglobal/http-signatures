@@ -20,6 +20,24 @@ export const verifySha256 =
       .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
   };
 
+export const signHmacSha256 =
+  (privateKey: crypto.KeyObject) =>
+  async (data: Uint8Array): Promise<Uint8Array> => {
+    const hmac = crypto.createHmac("SHA256", privateKey);
+    hmac.write(data);
+    hmac.end();
+    return hmac.read();
+  };
+
+export const verifyHmacSha256 =
+  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
+    const hmac = crypto.createHmac("SHA256", keyMap[keyid]);
+    hmac.write(data);
+    hmac.end();
+    return Buffer.compare(hmac.read(), signature) == 0;
+  };
+
 export const signEcdsaSha384 =
   (privateKey: crypto.KeyObject) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
@@ -89,10 +107,10 @@ export const algMap: {
   //   sign: signSha256,
   //   verify: verifySha256,
   // },
-  // ["hmac-sha256"]: {
-  //   sign: signHmacSha256,
-  //   verify: verifyHmacSha256,
-  // },
+  ["hmac-sha256"]: {
+    sign: signHmacSha256,
+    verify: verifyHmacSha256,
+  },
   ["ecdsa-p384-sha384"]: {
     sign: signEcdsaSha384,
     verify: verifyEcdsaSha384,

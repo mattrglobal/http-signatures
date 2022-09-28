@@ -7,7 +7,8 @@ import crypto from "crypto";
 import http from "http";
 import superagent from "superagent";
 
-import { signSha256, signEcdsaSha384, signRsaPssSha512 } from "../../src/common/cryptoPrimatives";
+import { decodeBase64 } from "../../src/common";
+import { signSha256, signEcdsaSha384, signRsaPssSha512, signHmacSha256 } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import {
   createSignatureHeader,
@@ -21,6 +22,7 @@ import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHea
 let ecdsaP256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ecdsaP384KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let hmacSharedSecret: crypto.KeyObject;
 
 describe("signRequest", () => {
   let server: http.Server;
@@ -142,6 +144,7 @@ describe("signRequest", () => {
     ecdsaP256KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
     ecdsaP384KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-384" });
     ed25519KeyPair = crypto.generateKeyPairSync("ed25519");
+    hmacSharedSecret = crypto.createSecretKey(crypto.randomBytes(4096));
   });
 
   it("Should sign a request with ecdsa-p256-sha256 alg", async () => {
@@ -245,6 +248,41 @@ describe("signRequest", () => {
         signature: expect.stringMatching(/^sig1=*.*:$/),
         "signature-input":
           'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="ed25519";keyid="key1"',
+      },
+    });
+  });
+
+  it("Should sign a request with hmac-sha256 alg", async () => {
+    const requestOptions = {
+      host,
+      port,
+      path: "/test",
+      method: "GET",
+      headers: {
+        "content-type": "text/plain",
+      },
+    };
+
+    const signOptions = {
+      alg: AlgorithmTypes["hmac-sha256"],
+      key: hmacSharedSecret,
+      keyid: "key1",
+      data: `{"Hello": "World"}`,
+    };
+
+    const res = await request(requestOptions, signOptions);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers).toEqual({
+      connection: "close",
+      date: expect.any(String),
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
+    });
+    expect(res.body).toMatchObject({
+      headers: {
+        signature: expect.stringMatching(/^sig1=*.*:$/),
+        "signature-input":
+          'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="hmac-sha256";keyid="key1"',
       },
     });
   });
@@ -500,6 +538,42 @@ describe("createSignatureHeader", () => {
       signature: expect.stringMatching(/^sig-b21=*.*:$/),
       signatureInput: 'sig-b21=();created=1618884473;nonce="b3k2pp5k7z-50gnwp.yemd";keyid="test-key-rsa-pss"',
       digest: "sha-256=:X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=:",
+    });
+  });
+
+  it("should be able to recreate the signature from test case B.2.5. in the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-11.html#name-signing-a-request-using-hma
+
+    Date.now = jest.fn(() => 1618884473000);
+    const b64secret = "uzvJfB4u3N0Jy4T7NZ75MDVcr8zSTInedJtkgcu46YW4XByzNJjxBdtjUkdJPBtbmHhIDi6pcl8jsasjlTMtDQ==";
+    const decodeResult = decodeBase64(b64secret);
+    if (decodeResult.isErr()) {
+      throw decodeResult.error;
+    }
+    const { value: secret } = decodeResult;
+
+    const hmacSharedSecret = Buffer.from(secret);
+    const key = crypto.createSecretKey(hmacSharedSecret);
+
+    const result = await createSignatureHeader({
+      httpHeaders: {
+        "Content-Type": "application/json",
+        date: "Tue, 20 Apr 2021 02:07:55 GMT",
+      },
+      method: "POST",
+      url: "http://example.com/foo",
+      signatureId: "sig-b25",
+      coveredFieldNames: ["date", "@authority", "content-type"],
+      signer: {
+        keyid: "test-shared-secret",
+        sign: signHmacSha256(key),
+      },
+    });
+
+    expect(unwrap(result)).toEqual({
+      signature: "sig-b25=:pxcQw6G3AjtMBQjwo8XzkZf/bws5LelbaMk5rGIGtE8=:",
+      signatureInput: 'sig-b25=("date" "@authority" "content-type");created=1618884473;keyid="test-shared-secret"',
+      digest: undefined,
     });
   });
 
