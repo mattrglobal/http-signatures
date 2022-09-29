@@ -5,19 +5,40 @@
  */
 import crypto from "crypto";
 
-export const signSha256 =
+export const signEcdsaSha256 =
   (privateKey: crypto.KeyObject) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
     return await crypto.createSign("SHA256").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
   };
 
-export const verifySha256 =
+export const verifyEcdsaSha256 =
   (keyMap: { [keyid: string]: crypto.KeyObject }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
     return await crypto
       .createVerify("SHA256")
       .update(data)
       .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
+  };
+
+export const signRssV1_5Sha256 =
+  (privateKey: crypto.KeyObject) =>
+  async (data: Uint8Array): Promise<Uint8Array> => {
+    return await crypto
+      .createSign("SHA256")
+      .update(data)
+      .sign({ key: privateKey, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PADDING });
+  };
+
+export const verifyRssV1_5Sha256 =
+  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
+    return await crypto
+      .createVerify("SHA256")
+      .update(data)
+      .verify(
+        { key: keyMap[keyid], dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PADDING },
+        signature
+      );
   };
 
 export const signHmacSha256 =
@@ -108,11 +129,10 @@ export const algMap: {
     sign: signRsaPssSha512,
     verify: verifyRsaPssSha512,
   },
-  // TODO implement remaining algorithms and corresponding tests from the spec
-  // ["rsa-v1_5-sha256"]: {
-  //   sign: signSha256,
-  //   verify: verifySha256,
-  // },
+  ["rsa-v1_5-sha256"]: {
+    sign: signRssV1_5Sha256,
+    verify: verifyRssV1_5Sha256,
+  },
   ["hmac-sha256"]: {
     sign: signHmacSha256,
     verify: verifyHmacSha256,
@@ -122,8 +142,8 @@ export const algMap: {
     verify: verifyEcdsaSha384,
   },
   ["ecdsa-p256-sha256"]: {
-    sign: signSha256,
-    verify: verifySha256,
+    sign: signEcdsaSha256,
+    verify: verifyEcdsaSha256,
   },
   ["ed25519"]: {
     sign: signEd25519,

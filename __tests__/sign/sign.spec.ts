@@ -8,7 +8,7 @@ import http from "http";
 import superagent from "superagent";
 
 import { decodeBase64 } from "../../src/common";
-import { signSha256, signEcdsaSha384, signRsaPssSha512, signHmacSha256 } from "../../src/common/cryptoPrimatives";
+import { signEcdsaSha256, signEcdsaSha384, signRsaPssSha512, signHmacSha256 } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import {
   createSignatureHeader,
@@ -23,6 +23,7 @@ let ecdsaP256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObjec
 let ecdsaP384KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let rsaPssKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
+let rsaV1_5KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject };
 let hmacSharedSecret: crypto.KeyObject;
 
 describe("signRequest", () => {
@@ -146,6 +147,7 @@ describe("signRequest", () => {
     ecdsaP384KeyPair = crypto.generateKeyPairSync("ec", { namedCurve: "P-384" });
     ed25519KeyPair = crypto.generateKeyPairSync("ed25519");
     rsaPssKeyPair = crypto.generateKeyPairSync("rsa-pss", { modulusLength: 4096 });
+    rsaV1_5KeyPair = crypto.generateKeyPairSync("rsa", { modulusLength: 4096 });
     hmacSharedSecret = crypto.createSecretKey(crypto.randomBytes(4096));
   });
 
@@ -289,6 +291,41 @@ describe("signRequest", () => {
     });
   });
 
+  it("Should sign a request with rsa-v1_5-sha256 alg", async () => {
+    const requestOptions = {
+      host,
+      port,
+      path: "/test",
+      method: "GET",
+      headers: {
+        "content-type": "text/plain",
+      },
+    };
+
+    const signOptions = {
+      alg: AlgorithmTypes["rsa-v1_5-sha256"],
+      key: rsaV1_5KeyPair.privateKey,
+      keyid: "key1",
+      data: `{"Hello": "World"}`,
+    };
+
+    const res = await request(requestOptions, signOptions);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers).toEqual({
+      connection: "close",
+      date: expect.any(String),
+      "content-type": "application/json",
+      "transfer-encoding": "chunked",
+    });
+    expect(res.body).toMatchObject({
+      headers: {
+        signature: expect.stringMatching(/^sig1=*.*:$/),
+        "signature-input":
+          'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="rsa-v1_5-sha256";keyid="key1"',
+      },
+    });
+  });
+
   it("Should sign a request with rsa-pss-sha512 alg", async () => {
     const requestOptions = {
       host,
@@ -373,7 +410,7 @@ describe("createSignatureHeader", () => {
   it("Should create a signature and a digest", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
@@ -390,7 +427,7 @@ describe("createSignatureHeader", () => {
   it("Should accept an optional nonce, expiry and context", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },
       expires: 1577836801,
       nonce: "abcdefg",
       tag: "application specific context",
@@ -411,7 +448,7 @@ describe("createSignatureHeader", () => {
     const signatureId = "testsig123";
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },
       signatureId,
     };
 
@@ -429,7 +466,7 @@ describe("createSignatureHeader", () => {
   it("Should be able to create multiple signatures on the same message", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
@@ -494,7 +531,7 @@ describe("createSignatureHeader", () => {
     const options = {
       ...createSignatureHeaderOptions,
       body: "string body",
-      signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },
     };
 
     const result = await createSignatureHeader(options);
@@ -507,7 +544,7 @@ describe("createSignatureHeader", () => {
 
   it("Should handle an empty body", async () => {
     const options = {
-      signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },
       url: "http://example.com/foo?param=value&pet=dog",
       alg: AlgorithmTypes["ecdsa-p256-sha256"],
       method: "POST",
@@ -646,7 +683,7 @@ describe("createSignatureHeader", () => {
   it("Should return an error when expiry is in the past", async () => {
     const options: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
-      signer: { keyid: "key1", sign: signSha256(ecdsaP256KeyPair.privateKey) },
+      signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },
       expires: 1,
     };
 

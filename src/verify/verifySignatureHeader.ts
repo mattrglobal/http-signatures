@@ -146,7 +146,7 @@ export const verifySignatureHeader = (
 
       const { value: verifyData } = verifyDataRes;
 
-      const digestEntry = verifyData.find((e) => e[0][0] == "content-digest");
+      const digestEntry = verifyData.find(([[e]]) => e == "content-digest");
       // Verify the digest if it's present
       if (digestEntry !== undefined && digestEntry[1] !== undefined) {
         if (Array.isArray(digestEntry[1])) {
