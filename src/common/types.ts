@@ -9,6 +9,6 @@ import { Item } from "structured-headers";
 export type VerifyData = {
   readonly [key: string]: string | string[];
 };
-export type VerifyDataEntry = [Item, string | string[] | undefined];
+export type VerifyDataEntry = [Item, string | string[] | number | undefined];
 
 export type HttpHeaders = { readonly [key: string]: string | string[] | undefined };

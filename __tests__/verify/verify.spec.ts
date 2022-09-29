@@ -759,6 +759,34 @@ describe("verifySignatureHeader", () => {
     expect(unwrap(result)).toEqual(true);
   });
 
+  it("should be able to verify the signature from test B.2.4. in the spec", async () => {
+    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-response-using-ec
+    const test_key_ecc_p256 = crypto.createPublicKey({
+      key: `-----BEGIN PUBLIC KEY-----
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEqIVYZVLCrPZHGHjP17CTW0/+D9Lf
+    w0EkjqF7xB4FivAxzic30tMM4GF+hR6Dxh71Z50VGGdldkkDXZCnTNnoXQ==\n-----END PUBLIC KEY-----`,
+    });
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        Signature: "sig-b24=:wNmSUAhwb5LxtOtOpNa6W5xj067m5hFrj0XQ4fvpaCLx0NKocgPquLgyahnzDnDAUy5eCdlYUEkLIj+32oiasw==:",
+        "Signature-Input":
+          'sig-b24=("@status" "content-type" "content-digest" "content-length");created=1618884473;keyid="test-key-ecc-p256"',
+        "Content-Digest":
+          "sha-512=:mEWXIS7MaLRuGgxOBdODa3xqM1XdEvxoYhvlCFJ41QJgJc4GTsPp29l5oGX69wWdXymyU0rjJuahq4l5aGgfLQ==:",
+        ["Content-Type"]: "application/json",
+        ["Content-Length"]: "23",
+      },
+      method: "POST",
+      url: "http://example.com/foo?param=Value&Pet=dog",
+      statusCode: 200,
+      body: `{"message": "good dog"}`,
+      verifier: { verify: verifySha256({ "test-key-ecc-p256": test_key_ecc_p256 }) },
+    });
+
+    expect(unwrap(result)).toEqual(true);
+  });
+
   it("should be able to verify the signature from test B.2.5. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-request-using-hma
 

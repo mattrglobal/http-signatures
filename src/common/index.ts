@@ -31,7 +31,11 @@ export const decodeBase64 = (bytes: string): Result<Uint8Array, string> => {
 const generateSignatureBase = (entries: VerifyDataEntry[]): string =>
   entries
     .map(([item, value]) => {
-      const processedValue = Array.isArray(value) ? value.join(", ").trim() : value?.trim();
+      const processedValue = Array.isArray(value)
+        ? value.join(", ").trim()
+        : typeof value == "string"
+        ? value?.trim()
+        : value;
       return `${serializeItem(item)}: ${processedValue}`;
     })
     .join("\n");

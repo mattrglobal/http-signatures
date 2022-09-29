@@ -62,6 +62,10 @@ export type CreateSignatureHeaderOptions = {
    */
   readonly body?: Record<string, unknown> | string;
   /**
+   * When signing over a response, optionally sign over @status by including it in the covered fields list, and passing in the status code of the response
+   */
+  readonly statusCode?: number;
+  /**
    * An optional expiry param as an Integer UNIX timestamp value, to indicate to the verifier a time after which this signature should no longer be trusted.
    * Sub- second precision is not supported.
    */
@@ -99,6 +103,7 @@ export const createSignatureHeader = async (
       signatureId,
       httpHeaders,
       body,
+      statusCode,
       url,
       expires,
       nonce,
@@ -169,6 +174,7 @@ export const createSignatureHeader = async (
 
     const verifyDataRes = generateVerifyData({
       coveredFields,
+      statusCode,
       httpHeaders: {
         ...httpHeaders,
         // Append the digest if necessary
