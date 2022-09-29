@@ -67,9 +67,9 @@ export const signRequest = async <T extends ClientRequest | SuperAgentRequest>(
       },
       url: request.url,
       method: request.method,
-      httpHeaders: JSON.parse(JSON.stringify(request)).headers, // TODO
+      httpHeaders: JSON.parse(JSON.stringify(request)).headers, // Workaround for inability to access superagent request proprties directly
       alg,
-      body: JSON.parse(JSON.stringify(request)).data, // TODO
+      body: JSON.parse(JSON.stringify(request)).data, // Workaround for inability to access superagent request proprties directly
     });
 
     if (signResult.isErr()) {
