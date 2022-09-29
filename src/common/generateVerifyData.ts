@@ -56,11 +56,11 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
 
   const entries: VerifyDataEntry[] = coveredFields.reduce(
     (entries: VerifyDataEntry[], field: Item): VerifyDataEntry[] => {
-      const fieldName = field[0] as string;
+      const [fieldName, fieldParams] = field;
 
       let newEntry: VerifyDataEntry;
       let queryParamName: string | undefined;
-      if (fieldName.startsWith("@")) {
+      if ((fieldName as string).startsWith("@")) {
         // derived components
         switch (fieldName) {
           case "@request-target":
@@ -85,7 +85,7 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
             newEntry = [field, protocol];
             break;
           case "@query-param":
-            queryParamName = field[1].get("name") as string | undefined;
+            queryParamName = fieldParams.get("name") as string | undefined;
             newEntry = queryParamName ? [field, queryObj[queryParamName]] : [field, ""];
             break;
           case "@status":
@@ -95,7 +95,7 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
             newEntry = [field, ""];
         }
       } else {
-        newEntry = [field, lowerCaseHttpHeaders[fieldName]];
+        newEntry = [field, lowerCaseHttpHeaders[fieldName as string]];
       }
       return [...entries, newEntry];
     },

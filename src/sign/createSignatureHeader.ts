@@ -97,6 +97,13 @@ export const createSignatureHeader = async (
   options: CreateSignatureHeaderOptions
 ): Promise<Result<{ digest?: string; signature: string; signatureInput: string }, CreateSignatureHeaderError>> => {
   try {
+    const bodyCovered = options.body ? ["content-digest"] : [];
+    const headersCovered = (
+      options.httpHeaders &&
+      Object.keys(options.httpHeaders)
+        .filter((header) => header.toLowerCase() != "signature" && header.toLowerCase() != "signature-input")
+        .map((a) => a.toLowerCase())
+    ).sort();
     const {
       signer: { keyid, sign },
       method,
@@ -109,17 +116,7 @@ export const createSignatureHeader = async (
       nonce,
       tag,
       alg,
-      coveredFields = [
-        "@request-target",
-        "@method",
-        ...(body ? ["content-digest"] : []),
-        ...(
-          httpHeaders &&
-          Object.keys(httpHeaders)
-            .filter((header) => header.toLowerCase() != "signature" && header.toLowerCase() != "signature-input")
-            .map((a) => a.toLowerCase())
-        ).sort(),
-      ].map((a) => [a, new Map()]),
+      coveredFields = ["@request-target", "@method", ...bodyCovered, ...headersCovered].map((a) => [a, new Map()]),
     } = options;
 
     const created = Math.floor(Date.now() / 1000);
