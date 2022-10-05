@@ -3,119 +3,137 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import crypto from "crypto";
+import crypto, { JsonWebKey } from "crypto";
 
 export const signEcdsaSha256 =
-  (privateKey: crypto.KeyObject) =>
+  (key: JsonWebKey) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
-    return await crypto.createSign("SHA256").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
+    const keyObject = crypto.createPrivateKey({ key, format: "jwk" });
+    return crypto.createSign("SHA256").update(data).sign({ key: keyObject, dsaEncoding: "ieee-p1363" });
   };
 
 export const verifyEcdsaSha256 =
-  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  (keyMap: { [keyid: string]: JsonWebKey }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    return await crypto
-      .createVerify("SHA256")
-      .update(data)
-      .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
+    const key: JsonWebKey = keyMap[keyid];
+    const keyObject = crypto.createPublicKey({ key, format: "jwk" });
+    return crypto.createVerify("SHA256").update(data).verify({ key: keyObject, dsaEncoding: "ieee-p1363" }, signature);
   };
 
 export const signRssV1_5Sha256 =
-  (privateKey: crypto.KeyObject) =>
+  (key: JsonWebKey) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
-    return await crypto
+    const keyObject = crypto.createPrivateKey({ key, format: "jwk" });
+    return crypto
       .createSign("SHA256")
       .update(data)
-      .sign({ key: privateKey, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PADDING });
+      .sign({ key: keyObject, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PADDING });
   };
 
 export const verifyRssV1_5Sha256 =
-  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  (keyMap: { [keyid: string]: JsonWebKey }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    return await crypto
+    const key: JsonWebKey = keyMap[keyid];
+    const keyObject = crypto.createPublicKey({ key, format: "jwk" });
+    return crypto
       .createVerify("SHA256")
       .update(data)
-      .verify(
-        { key: keyMap[keyid], dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PADDING },
-        signature
-      );
+      .verify({ key: keyObject, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PADDING }, signature);
   };
 
-export const signHmacSha256 =
-  (privateKey: crypto.KeyObject) =>
-  async (data: Uint8Array): Promise<Uint8Array> => {
-    const hmac = crypto.createHmac("SHA256", privateKey);
+export const signHmacSha256 = (key: JsonWebKey) => {
+  return async (data: Uint8Array): Promise<Uint8Array> => {
+    const keyObject = key.k ? crypto.createSecretKey(key.k, "base64") : undefined;
+    if (keyObject == undefined) {
+      throw Error("Unable to parse key object");
+    }
+    const hmac = crypto.createHmac("SHA256", keyObject);
     hmac.write(data);
     hmac.end();
     return hmac.read();
   };
+};
 
 export const verifyHmacSha256 =
-  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  (keyMap: { [keyid: string]: JsonWebKey }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    const hmac = crypto.createHmac("SHA256", keyMap[keyid]);
+    const key: JsonWebKey = keyMap[keyid];
+    const keyObject = key.k ? crypto.createSecretKey(key.k, "base64") : undefined;
+    if (keyObject == undefined) {
+      throw Error("Unable to parse key object");
+    }
+    const hmac = crypto.createHmac("SHA256", keyObject);
     hmac.write(data);
     hmac.end();
     return Buffer.compare(hmac.read(), signature) == 0;
   };
 
 export const signEcdsaSha384 =
-  (privateKey: crypto.KeyObject) =>
+  (key: JsonWebKey) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
-    return await crypto.createSign("SHA384").update(data).sign({ key: privateKey, dsaEncoding: "ieee-p1363" });
+    const keyObject = crypto.createPrivateKey({ key, format: "jwk" });
+    return crypto.createSign("SHA384").update(data).sign({ key: keyObject, dsaEncoding: "ieee-p1363" });
   };
 
 export const verifyEcdsaSha384 =
-  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  (keyMap: { [keyid: string]: JsonWebKey }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
+    const key: JsonWebKey = keyMap[keyid];
+    const keyObject = crypto.createPublicKey({ key, format: "jwk" });
     return await crypto
       .createVerify("SHA384")
       .update(data)
-      .verify({ key: keyMap[keyid], dsaEncoding: "ieee-p1363" }, signature);
+      .verify({ key: keyObject, dsaEncoding: "ieee-p1363" }, signature);
   };
 
 export const signRsaPssSha512 =
-  (privateKey: crypto.KeyObject) =>
+  (key: JsonWebKey) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
+    const keyObject = crypto.createPrivateKey({ key, format: "jwk" });
     return await crypto
       .createSign("SHA512")
       .update(data)
-      .sign({ key: privateKey, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PSS_PADDING });
+      .sign({ key: keyObject, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PSS_PADDING });
   };
 
 export const verifyRsaPssSha512 =
-  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  (keyMap: { [keyid: string]: JsonWebKey }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
+    const key: JsonWebKey = keyMap[keyid];
+    const keyObject = crypto.createPublicKey({ key, format: "jwk" });
     return crypto
       .createVerify("SHA512")
       .update(data)
       .verify(
-        { key: keyMap[keyid], dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PSS_PADDING },
+        { key: keyObject, dsaEncoding: "ieee-p1363", padding: crypto.constants.RSA_PKCS1_PSS_PADDING },
         signature
       );
   };
 
 export const signEd25519 =
-  (privateKey: crypto.KeyObject) =>
+  (key: JsonWebKey) =>
   async (data: Uint8Array): Promise<Uint8Array> => {
-    return crypto.sign(null, data, privateKey);
+    const keyObject = crypto.createPrivateKey({ key, format: "jwk" });
+    return crypto.sign(null, data, keyObject);
   };
 
 export const verifyEd25519 =
-  (keyMap: { [keyid: string]: crypto.KeyObject }) =>
+  (keyMap: { [keyid: string]: JsonWebKey }) =>
   async (keyid: string, data: Uint8Array, signature: Uint8Array): Promise<boolean> => {
-    return crypto.verify(null, data, keyMap[keyid], signature);
+    const key: JsonWebKey = keyMap[keyid];
+    const keyObject = crypto.createPublicKey({ key, format: "jwk" });
+    return crypto.verify(null, data, keyObject, signature);
   };
 
 type keyMap = {
-  [keyid: string]: crypto.KeyObject;
+  [keyid: string]: JsonWebKey;
 };
 
 type VerifyFunctionWrapper = (keyMap: keyMap) => VerifyFunction;
 
 type VerifyFunction = (keyid: string, data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
 
-type SignFunctionWrapper = (privateKey: crypto.KeyObject) => SignFunction;
+type SignFunctionWrapper = (privateKey: JsonWebKey) => SignFunction;
 
 type SignFunction = (data: Uint8Array) => Promise<Uint8Array>;
 

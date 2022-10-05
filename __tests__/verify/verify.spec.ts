@@ -3,7 +3,7 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import crypto from "crypto";
+import crypto, { JsonWebKey, KeyObject } from "crypto";
 import http from "http";
 import { err } from "neverthrow";
 
@@ -25,33 +25,45 @@ import {
 } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
+import { rsaPssPrivateKey, rsaPssPublicKey } from "../__fixtures__/rsaPssKeypair";
 
 let createSignatureResult: { digest?: string; signature: string; signatureInput: string };
 let createSignatureResultTwo: { digest?: string; signature: string; signatureInput: string };
-const ecdsaP256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "ec",
-  { namedCurve: "P-256" }
-);
-const ecdsaP256KeyPairTwo: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "ec",
-  { namedCurve: "P-256" }
-);
-const ecdsaP384KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "ec",
-  { namedCurve: "P-384" }
-);
-const ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } =
-  crypto.generateKeyPairSync("ed25519");
-const rsaPssKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "rsa-pss",
-  { modulusLength: 4096 }
-);
-const rsaV1_5KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "rsa",
-  { modulusLength: 4096 }
-);
+const ecdsaP256KeyObjects = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+const ecdsaP256KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: ecdsaP256KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: ecdsaP256KeyObjects.privateKey.export({ format: "jwk" }),
+};
+const ecdsaP256KeyObjectsTwo = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+const ecdsaP256KeyPairTwo: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: ecdsaP256KeyObjectsTwo.publicKey.export({ format: "jwk" }),
+  privateKey: ecdsaP256KeyObjectsTwo.privateKey.export({ format: "jwk" }),
+};
+const ecdsaP384KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("ec", {
+  namedCurve: "P-384",
+});
+const ecdsaP384KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: ecdsaP384KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: ecdsaP384KeyObjects.privateKey.export({ format: "jwk" }),
+};
+const ed25519KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("ed25519");
+const ed25519KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: ed25519KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: ed25519KeyObjects.privateKey.export({ format: "jwk" }),
+};
+const rsaPssKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: rsaPssPublicKey,
+  privateKey: rsaPssPrivateKey,
+};
+const rsaV1_5KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("rsa", {
+  modulusLength: 4096,
+});
+const rsaV1_5KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: rsaV1_5KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: rsaV1_5KeyObjects.privateKey.export({ format: "jwk" }),
+};
 const keymap = { key1: ecdsaP256KeyPair.publicKey, key2: ecdsaP256KeyPairTwo.publicKey };
-const hmacSharedSecret: crypto.KeyObject = crypto.createSecretKey(crypto.randomBytes(4096));
+const hmacSharedSecret: JsonWebKey = crypto.createSecretKey(crypto.randomBytes(4096)).export({ format: "jwk" });
 
 const examplePublicRsaPssKey = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr4tmm3r20Wd/PbqvP1s2
@@ -111,7 +123,7 @@ describe("verifyRequest", () => {
     [AlgorithmTypes["rsa-v1_5-sha256"], rsaV1_5KeyPair.privateKey, rsaV1_5KeyPair.publicKey],
   ])(
     "Should verify a request with %s algorithm",
-    async (alg: AlgorithmTypes, privateKey: crypto.KeyObject, publicKey: crypto.KeyObject) => {
+    async (alg: AlgorithmTypes, privateKey: JsonWebKey, publicKey: JsonWebKey) => {
       server = http.createServer((req, res) => {
         if (req.url === "/test") {
           let reqdata = "";
@@ -519,7 +531,7 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       verifier: { verify: verifyEcdsaSha256(keymap) },
-      body: { tampered: "body" },
+      body: `{ "tampered": "body" }`,
     });
 
     expect(unwrap(result)).toEqual(false);
@@ -631,7 +643,7 @@ describe("verifySignatureHeader", () => {
 
   it("should be able to verify the signature from test B.2.1. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
-    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey });
+    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey }).export({ format: "jwk" });
 
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -650,7 +662,7 @@ describe("verifySignatureHeader", () => {
 
   it("should be able to verify the signature from test B.2.2. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
-    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey });
+    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey }).export({ format: "jwk" });
 
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -672,7 +684,7 @@ describe("verifySignatureHeader", () => {
 
   it("should be able to verify the signature from test B.2.3. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-full-coverage-using-rsa-pss
-    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey });
+    const rsa_pss_key = crypto.createPublicKey({ key: examplePublicRsaPssKey }).export({ format: "jwk" });
 
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -697,11 +709,13 @@ describe("verifySignatureHeader", () => {
 
   it("should be able to verify the signature from test B.2.4. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-response-using-ec
-    const test_key_ecc_p256 = crypto.createPublicKey({
-      key: `-----BEGIN PUBLIC KEY-----
+    const test_key_ecc_p256 = crypto
+      .createPublicKey({
+        key: `-----BEGIN PUBLIC KEY-----
     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEqIVYZVLCrPZHGHjP17CTW0/+D9Lf
     w0EkjqF7xB4FivAxzic30tMM4GF+hR6Dxh71Z50VGGdldkkDXZCnTNnoXQ==\n-----END PUBLIC KEY-----`,
-    });
+      })
+      .export({ format: "jwk" });
 
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -734,7 +748,7 @@ describe("verifySignatureHeader", () => {
     const { value: secret } = decodeResult;
 
     const hmacSharedSecret = Buffer.from(secret);
-    const key = crypto.createSecretKey(hmacSharedSecret);
+    const key = crypto.createSecretKey(hmacSharedSecret).export({ format: "jwk" });
 
     const result = await verifySignatureHeader({
       httpHeaders: {
@@ -753,9 +767,11 @@ describe("verifySignatureHeader", () => {
 
   it("should be able to verify the signature from test B.2.6. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-request-using-ed2
-    const ed25519TestKey = crypto.createPublicKey(
-      `-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAJrQLj5P/89iXES9+vFgrIy29clF9CC/oPPsw3c5D0bs=\n-----END PUBLIC KEY-----`
-    );
+    const ed25519TestKey = crypto
+      .createPublicKey(
+        `-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAJrQLj5P/89iXES9+vFgrIy29clF9CC/oPPsw3c5D0bs=\n-----END PUBLIC KEY-----`
+      )
+      .export({ format: "jwk" });
 
     const result = await verifySignatureHeader({
       httpHeaders: {

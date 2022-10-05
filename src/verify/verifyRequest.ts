@@ -4,7 +4,7 @@
  * Confidential and proprietary
  */
 
-import { KeyObject } from "crypto";
+import { JsonWebKey } from "crypto";
 import http from "http";
 import { ResultAsync } from "neverthrow";
 
@@ -15,7 +15,7 @@ import { AlgorithmTypes } from "../sign/createSignatureHeader";
 import { verifySignatureHeader } from "./verifySignatureHeader";
 
 export type VerifyRequestOptions = {
-  keymap: { [keyid: string]: KeyObject };
+  keymap: { [keyid: string]: JsonWebKey };
   alg: AlgorithmTypes;
   request: http.IncomingMessage;
   signatureKey?: string;

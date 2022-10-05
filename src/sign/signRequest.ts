@@ -3,7 +3,7 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import { KeyObject } from "crypto";
+import { JsonWebKey } from "crypto";
 import { ClientRequest } from "http";
 import { err, ok, Result } from "neverthrow";
 import { SuperAgentRequest } from "superagent";
@@ -12,17 +12,17 @@ import { algMap } from "../common/cryptoPrimatives";
 
 import { createSignatureHeader, AlgorithmTypes } from "./createSignatureHeader";
 
-export type SignOptions = { alg: AlgorithmTypes; key: KeyObject; keyid: string; data?: string };
+export type SignOptions = { alg: AlgorithmTypes; key: JsonWebKey; keyid: string; data?: string };
 export type SignHttpOptions = {
   alg: AlgorithmTypes;
-  key: KeyObject;
+  key: JsonWebKey;
   keyid: string;
   data?: string;
   request: ClientRequest;
 };
 export type SignSuperAgentOptons = {
   alg: AlgorithmTypes;
-  key: KeyObject;
+  key: JsonWebKey;
   keyid: string;
   data?: string;
   request: SuperAgentRequest;

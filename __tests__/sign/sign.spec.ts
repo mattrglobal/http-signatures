@@ -3,8 +3,8 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import crypto from "crypto";
 import http from "http";
+import crypto, { JsonWebKey, KeyObject } from "node:crypto";
 import superagent from "superagent";
 
 import { decodeBase64 } from "../../src/common";
@@ -24,26 +24,37 @@ import {
   AlgorithmTypes,
 } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
+import { rsaPssPrivateKey, rsaPssPublicKey } from "../__fixtures__/rsaPssKeypair";
 
-const ecdsaP256KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "ec",
-  { namedCurve: "P-256" }
-);
-const ecdsaP384KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "ec",
-  { namedCurve: "P-384" }
-);
-const ed25519KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } =
-  crypto.generateKeyPairSync("ed25519");
-const rsaPssKeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "rsa-pss",
-  { modulusLength: 4096 }
-);
-const rsaV1_5KeyPair: { publicKey: crypto.KeyObject; privateKey: crypto.KeyObject } = crypto.generateKeyPairSync(
-  "rsa",
-  { modulusLength: 4096 }
-);
-const hmacSharedSecret: crypto.KeyObject = crypto.createSecretKey(crypto.randomBytes(4096));
+const ecdsaP256KeyObjects = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+const ecdsaP256KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: ecdsaP256KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: ecdsaP256KeyObjects.privateKey.export({ format: "jwk" }),
+};
+const ecdsaP384KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("ec", {
+  namedCurve: "P-384",
+});
+const ecdsaP384KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: ecdsaP384KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: ecdsaP384KeyObjects.privateKey.export({ format: "jwk" }),
+};
+const ed25519KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("ed25519");
+const ed25519KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: ed25519KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: ed25519KeyObjects.privateKey.export({ format: "jwk" }),
+};
+const rsaPssKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: rsaPssPublicKey,
+  privateKey: rsaPssPrivateKey,
+};
+const rsaV1_5KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("rsa", {
+  modulusLength: 4096,
+});
+const rsaV1_5KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
+  publicKey: rsaV1_5KeyObjects.publicKey.export({ format: "jwk" }),
+  privateKey: rsaV1_5KeyObjects.privateKey.export({ format: "jwk" }),
+};
+const hmacSharedSecret: JsonWebKey = crypto.createSecretKey(crypto.randomBytes(4096)).export({ format: "jwk" });
 
 describe("signRequest", () => {
   let server: http.Server;
@@ -168,7 +179,7 @@ describe("signRequest", () => {
     [AlgorithmTypes["hmac-sha256"], hmacSharedSecret],
     [AlgorithmTypes["rsa-pss-sha512"], rsaPssKeyPair.privateKey],
     [AlgorithmTypes["rsa-v1_5-sha256"], rsaV1_5KeyPair.privateKey],
-  ])("Should sign a request with %s algorithm", async (alg: AlgorithmTypes, key: crypto.KeyObject) => {
+  ])("Should sign a request with %s algorithm", async (alg: AlgorithmTypes, key: JsonWebKey) => {
     const requestOptions = {
       host,
       port,
@@ -402,40 +413,8 @@ describe("createSignatureHeader", () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-minimal-signature-using-rsa
     Date.now = jest.fn(() => 1618884473000);
 
-    const exampleKey = crypto.createPrivateKey({
-      key: `-----BEGIN PRIVATE KEY-----
-      MIIEvgIBADALBgkqhkiG9w0BAQoEggSqMIIEpgIBAAKCAQEAr4tmm3r20Wd/Pbqv
-      P1s2+QEtvpuRaV8Yq40gjUR8y2Rjxa6dpG2GXHbPfvMs8ct+Lh1GH45x28Rw3Ry5
-      3mm+oAXjyQ86OnDkZ5N8lYbggD4O3w6M6pAvLkhk95AndTrifbIFPNU8PPMO7Oyr
-      FAHqgDsznjPFmTOtCEcN2Z1FpWgchwuYLPL+Wokqltd11nqqzi+bJ9cvSKADYdUA
-      AN5WUtzdpiy6LbTgSxP7ociU4Tn0g5I6aDZJ7A8Lzo0KSyZYoA485mqcO0GVAdVw
-      9lq4aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oy
-      c6XI2wIDAQABAoIBAQCUB8ip+kJiiZVKF8AqfB/aUP0jTAqOQewK1kKJ/iQCXBCq
-      pbo360gvdt05H5VZ/RDVkEgO2k73VSsbulqezKs8RFs2tEmU+JgTI9MeQJPWcP6X
-      aKy6LIYs0E2cWgp8GADgoBs8llBq0UhX0KffglIeek3n7Z6Gt4YFge2TAcW2WbN4
-      XfK7lupFyo6HHyWRiYHMMARQXLJeOSdTn5aMBP0PO4bQyk5ORxTUSeOciPJUFktQ
-      HkvGbym7KryEfwH8Tks0L7WhzyP60PL3xS9FNOJi9m+zztwYIXGDQuKM2GDsITeD
-      2mI2oHoPMyAD0wdI7BwSVW18p1h+jgfc4dlexKYRAoGBAOVfuiEiOchGghV5vn5N
-      RDNscAFnpHj1QgMr6/UG05RTgmcLfVsI1I4bSkbrIuVKviGGf7atlkROALOG/xRx
-      DLadgBEeNyHL5lz6ihQaFJLVQ0u3U4SB67J0YtVO3R6lXcIjBDHuY8SjYJ7Ci6Z6
-      vuDcoaEujnlrtUhaMxvSfcUJAoGBAMPsCHXte1uWNAqYad2WdLjPDlKtQJK1diCm
-      rqmB2g8QE99hDOHItjDBEdpyFBKOIP+NpVtM2KLhRajjcL9Ph8jrID6XUqikQuVi
-      4J9FV2m42jXMuioTT13idAILanYg8D3idvy/3isDVkON0X3UAVKrgMEne0hJpkPL
-      FYqgetvDAoGBAKLQ6JZMbSe0pPIJkSamQhsehgL5Rs51iX4m1z7+sYFAJfhvN3Q/
-      OGIHDRp6HjMUcxHpHw7U+S1TETxePwKLnLKj6hw8jnX2/nZRgWHzgVcY+sPsReRx
-      NJVf+Cfh6yOtznfX00p+JWOXdSY8glSSHJwRAMog+hFGW1AYdt7w80XBAoGBAImR
-      NUugqapgaEA8TrFxkJmngXYaAqpA0iYRA7kv3S4QavPBUGtFJHBNULzitydkNtVZ
-      3w6hgce0h9YThTo/nKc+OZDZbgfN9s7cQ75x0PQCAO4fx2P91Q+mDzDUVTeG30mE
-      t2m3S0dGe47JiJxifV9P3wNBNrZGSIF3mrORBVNDAoGBAI0QKn2Iv7Sgo4T/XjND
-      dl2kZTXqGAk8dOhpUiw/HdM3OGWbhHj2NdCzBliOmPyQtAr770GITWvbAI+IRYyF
-      S7Fnk6ZVVVHsxjtaHy1uJGFlaZzKR4AGNaUTOJMs6NadzCmGPAxNQQOCqoUjn4XR
-      rOjr9w349JooGXhOxbu8nOxX\n-----END PRIVATE KEY-----`,
-      format: "pem",
-      type: "pkcs8",
-    });
-
     const options: CreateSignatureHeaderOptions = {
-      signer: { keyid: "test-key-rsa-pss", sign: signRsaPssSha512(exampleKey) },
+      signer: { keyid: "test-key-rsa-pss", sign: signRsaPssSha512(rsaPssKeyPair.privateKey) },
       coveredFields: [],
       nonce: "b3k2pp5k7z-50gnwp.yemd",
       signatureId: "sig-b21",
@@ -470,7 +449,7 @@ describe("createSignatureHeader", () => {
     const { value: secret } = decodeResult;
 
     const hmacSharedSecret = Buffer.from(secret);
-    const key = crypto.createSecretKey(hmacSharedSecret);
+    const key = crypto.createSecretKey(hmacSharedSecret).export({ format: "jwk" });
 
     const result = await createSignatureHeader({
       httpHeaders: {
@@ -503,7 +482,7 @@ describe("createSignatureHeader", () => {
 
     Date.now = jest.fn(() => 1618884473000);
     const privateKey = `-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIJ+DYvh6SEqVTm50DFtMDoQikTmiCqirVv9mWG9qfSnF\n-----END PRIVATE KEY-----`;
-    const key = crypto.createPrivateKey(privateKey);
+    const key = crypto.createPrivateKey(privateKey).export({ format: "jwk" });
 
     const result = await createSignatureHeader({
       httpHeaders: {
