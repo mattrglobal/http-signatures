@@ -4,9 +4,14 @@
  * Confidential and proprietary
  */
 
+import { JsonWebKey } from "crypto";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { includes, pickBy, toLower } from "ramda";
+import { AlgorithmTypes } from "src/sign";
 import { parseDictionary, serializeList, serializeDictionary, InnerList } from "structured-headers";
+
+// accepts keymap, each key has optional verify function
+// if no verify function is presented, determine appropriate default from cryptoPrimitives
 
 import {
   decodeBase64,
@@ -15,18 +20,24 @@ import {
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
+  getSignatureData,
 } from "../common";
-import { getSignatureData } from "../common";
+import { algMap } from "../common/cryptoPrimatives";
 import { VerifySignatureHeaderError } from "../errors";
 
 import { verifyDigest } from "./verifyDigest";
 
 export type VerifySignatureHeaderOptions = {
-  readonly verifier: {
-    /**
-     * The function for verifying the signature
-     */
-    readonly verify: (keyid: string, data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
+  /**
+   * A map of the cryptographic keys to use to verify the signatures and their verification functions.
+   *  If no verify function is present for a key, default cryptographic methods will be used.
+   */
+  readonly keyMap: {
+    [keyid: string]: {
+      alg?: AlgorithmTypes;
+      key?: JsonWebKey;
+      verify?: (data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
+    };
   };
   /**
    * Full url of the request including query parameters
@@ -60,14 +71,7 @@ export type VerifySignatureHeaderOptions = {
 export const verifySignatureHeader = (
   options: VerifySignatureHeaderOptions
 ): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  const {
-    verifier: { verify },
-    method,
-    httpHeaders,
-    url,
-    body,
-    signatureKey,
-  } = options;
+  const { keyMap, method, httpHeaders, url, body, signatureKey } = options;
 
   const verifications = [];
 
@@ -97,13 +101,26 @@ export const verifySignatureHeader = (
       if (signatureKey && signatureId != signatureKey) {
         continue;
       }
-
       const { coveredFields: coveredFields = [], parameters, signature } = signatureSet[signatureId];
 
       const currentTime = Math.floor(Date.now() / 1000);
       const coveredFieldNames = coveredFields.map((item) => item[0]);
 
       const expires = parameters.get("expires");
+      const keyid: string = parameters.get("keyid") as string;
+
+      if (!(keyid in keyMap)) {
+        return okAsync(false);
+      }
+
+      const keyMapData = keyMap[keyid];
+
+      // Use algorithm submitted from user, otherwise attempt to determine it from the signature-input header
+      const alg = keyMapData.alg ?? (parameters.get("alg") as AlgorithmTypes | undefined);
+
+      if (!alg) {
+        return okAsync(false);
+      }
 
       if (expires && expires < currentTime) {
         return okAsync(false);
@@ -154,8 +171,6 @@ export const verifySignatureHeader = (
 
       const signatureParams: InnerList = [verifyDataRes.value.map(([item]: VerifyDataEntry) => item), parameters];
 
-      const keyid: string = parameters.get("keyid") as string;
-
       const bytesToVerify = generateSignatureBytes([
         ...verifyData,
         [["@signature-params", new Map()], serializeList([signatureParams])],
@@ -168,7 +183,16 @@ export const verifySignatureHeader = (
       }
       const { value: decodedSignature } = decodedSignatureRes;
 
-      verifications.push(verify(keyid, bytesToVerify, Buffer.from(decodedSignature)));
+      if (keyMapData.verify) {
+        verifications.push(keyMapData.verify(bytesToVerify, Buffer.from(decodedSignature)));
+      } else if (keyMapData.key) {
+        verifications.push(algMap[alg].verify(keyMapData.key)(bytesToVerify, Buffer.from(decodedSignature)));
+      } else {
+        return errAsync({
+          type: "VerifyFailed",
+          message: `No key or verification function were provided for key ${keyid}`,
+        });
+      }
     }
 
     return ResultAsync.fromPromise(

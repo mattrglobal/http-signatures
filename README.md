@@ -56,8 +56,8 @@ With node http
 ```typescript
 
     const server = http.createServer((req, res) => {
-      const keymap = { keyid: ecdsap256PublicKey };
       const alg = AlgorithmTypes["ecdsa-p256-sha256"];
+      const keyMap = { key1: { key: myEcdsap256PublicKey, alg }};
 
       let reqdata = "";
       req.on("data", (chunk) => {
@@ -65,7 +65,7 @@ With node http
       });
 
       req.on("end", () => {
-        verifyRequest({ keymap, alg, request: req, data: reqdata }).then((verifyResult) => {
+        verifyRequest({ keyMap, request: req, data: reqdata }).then((verifyResult) => {
           if(verifyResult.isErr()){
             onError(verifyResult.error);
           }
@@ -87,8 +87,7 @@ app.use(bodyParser.json());
 app.post("/test", (req, res) => {
   verifyRequest({
     request: req,
-    keymap: { key1: publicKey },
-    alg,
+    keyMap: { key1: { key: myEcdsap256PublicKey, alg: AlgorithmTypes["ecdsa-p256-sha256"] } },
     data: req.body,
   }).then((verifyResult) => {
     if (verifyResult.isErr()) {
@@ -117,8 +116,7 @@ app.use(
 app.post("/test", (req: requestWithRawBody, res) => {
   verifyRequest({
     request: req,
-    keymap: { key1: ecdsaP256KeyPair.publicKey },
-    alg: AlgorithmTypes["ecdsa-p256-sha256"],
+    keyMap: { key1: { key: myEcdsap256PublicKey, alg: AlgorithmTypes["ecdsa-p256-sha256"] } },
     data: req.rawBody,
   }).then((verifyResult) => {
     if (verifyResult.isErr()) {
@@ -134,8 +132,8 @@ app.post("/test", (req: requestWithRawBody, res) => {
 
 const { headers, protocol, baseUrl, method, body } = request;
 const url = req.protocol + "://" + headers.host + req.baseUrl;
-const verifier = { verify: verifyFn };
-const options = { verifier, url, method, httpHeaders: headers, body };
+const keyMap = { key1: { verify: verifyFn } };
+const options = { keyMap, url, method, httpHeaders: headers, body };
 
 const result = await verifySignatureHeader(options);
 
