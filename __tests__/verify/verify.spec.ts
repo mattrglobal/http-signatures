@@ -3,7 +3,9 @@
  * All rights reserved
  * Confidential and proprietary
  */
+import bodyParser from "body-parser";
 import crypto, { JsonWebKey, KeyObject } from "crypto";
+import express from "express";
 import http from "http";
 import { err } from "neverthrow";
 
@@ -108,12 +110,6 @@ describe("verifyRequest", () => {
     });
   };
 
-  afterEach(async () => {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  });
-
   test.each([
     [AlgorithmTypes["ecdsa-p256-sha256"], ecdsaP256KeyPair.privateKey, ecdsaP256KeyPair.publicKey],
     [AlgorithmTypes["ecdsa-p384-sha384"], ecdsaP384KeyPair.privateKey, ecdsaP384KeyPair.publicKey],
@@ -122,7 +118,7 @@ describe("verifyRequest", () => {
     [AlgorithmTypes["rsa-pss-sha512"], rsaPssKeyPair.privateKey, rsaPssKeyPair.publicKey],
     [AlgorithmTypes["rsa-v1_5-sha256"], rsaV1_5KeyPair.privateKey, rsaV1_5KeyPair.publicKey],
   ])(
-    "Should verify a request with %s algorithm",
+    "Should verify an http request with %s algorithm",
     async (alg: AlgorithmTypes, privateKey: JsonWebKey, publicKey: JsonWebKey) => {
       server = http.createServer((req, res) => {
         if (req.url === "/test") {
@@ -132,9 +128,14 @@ describe("verifyRequest", () => {
           });
 
           req.on("end", () => {
-            verifyRequest({ keymap: { key1: publicKey }, alg, request: req, data: reqdata }).then((verifyResult) => {
-              expect(unwrap(verifyResult)).toEqual(true);
-            });
+            verifyRequest({ keymap: { key1: publicKey }, alg, request: req, data: reqdata }).then(
+              async (verifyResult) => {
+                expect(unwrap(verifyResult)).toEqual(true);
+                await new Promise<void>((resolve, reject) => {
+                  server.close((err) => (err ? reject(err) : resolve()));
+                });
+              }
+            );
           });
 
           const data = {
@@ -201,6 +202,196 @@ describe("verifyRequest", () => {
       );
     }
   );
+
+  test.each([
+    [AlgorithmTypes["ecdsa-p256-sha256"], ecdsaP256KeyPair.privateKey, ecdsaP256KeyPair.publicKey],
+    [AlgorithmTypes["ecdsa-p384-sha384"], ecdsaP384KeyPair.privateKey, ecdsaP384KeyPair.publicKey],
+    [AlgorithmTypes.ed25519, ed25519KeyPair.privateKey, ed25519KeyPair.publicKey],
+    [AlgorithmTypes["hmac-sha256"], hmacSharedSecret, hmacSharedSecret],
+    [AlgorithmTypes["rsa-pss-sha512"], rsaPssKeyPair.privateKey, rsaPssKeyPair.publicKey],
+    [AlgorithmTypes["rsa-v1_5-sha256"], rsaV1_5KeyPair.privateKey, rsaV1_5KeyPair.publicKey],
+  ])(
+    "Should verify an express request with %s algorithm",
+    async (alg: AlgorithmTypes, privateKey: JsonWebKey, publicKey: JsonWebKey) => {
+      const app = express();
+      let address;
+      let server: http.Server;
+
+      app.use(bodyParser.json());
+
+      app.post("/test", (req, res) => {
+        verifyRequest({
+          request: req,
+          keymap: { key1: publicKey },
+          alg,
+          data: req.body,
+        }).then((verifyResult) => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(verifyResult));
+          server.close();
+        });
+      });
+
+      await new Promise<void>((resolve) => {
+        server = app.listen(() => {
+          address = server.address() ?? "";
+          port = typeof address != "string" ? address.port : 0;
+          resolve();
+        });
+      });
+
+      host = "127.0.0.1";
+
+      const data = `{"hello":"world"}`;
+
+      const createOptions: CreateSignatureHeaderOptions = {
+        url: `http://127.0.0.1/test`,
+        method: "POST",
+        signer: { keyid: "key1", sign: algMap[alg].sign(privateKey) },
+        expires: 10000000000,
+        nonce: "abcd",
+        httpHeaders: {
+          ["HOST"]: host,
+          ["Content-Type"]: "application/json",
+        },
+        alg,
+        body: data,
+      };
+      await createSignatureHeader(createOptions).then((res) => {
+        expect(res.isOk()).toBe(true);
+        res.isOk() ? (createSignatureResult = res.value) : undefined;
+      });
+
+      const validHttpHeaderInput = {
+        Signature: createSignatureResult.signature,
+        "Signature-Input": createSignatureResult.signatureInput,
+        "Content-Digest": createSignatureResult.digest,
+      };
+
+      await request(
+        {
+          host,
+          port,
+          path: "/test",
+          method: "POST",
+          headers: {
+            ...validHttpHeaderInput,
+            ["HOST"]: host,
+            ["Content-Type"]: "application/json",
+          },
+        },
+        data
+      ).then((res) =>
+        expect(res).toEqual({
+          body: { value: true },
+          headers: {
+            connection: "close",
+            "content-type": "application/json",
+            date: expect.any(String),
+            "transfer-encoding": "chunked",
+            "x-powered-by": "Express",
+          },
+          statusCode: 200,
+        })
+      );
+    }
+  );
+
+  it("Should verify an express request using the raw body", async () => {
+    const app = express();
+    let address;
+    let server: http.Server;
+
+    type requestWithRawBody = http.IncomingMessage & {
+      rawBody?: string;
+    };
+
+    app.use(
+      bodyParser.json({
+        verify: function (req: requestWithRawBody, res, buf) {
+          if (buf && buf.length) {
+            req.rawBody = buf.toString("utf8");
+          }
+        },
+      })
+    );
+
+    app.post("/test", (req: requestWithRawBody, res) => {
+      verifyRequest({
+        request: req,
+        keymap: { key1: ecdsaP256KeyPair.publicKey },
+        alg: AlgorithmTypes["ecdsa-p256-sha256"],
+        data: req.rawBody,
+      }).then((verifyResult) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(verifyResult));
+        server.close();
+      });
+    });
+
+    await new Promise<void>((resolve) => {
+      server = app.listen(() => {
+        address = server.address() ?? "";
+        port = typeof address != "string" ? address.port : 0;
+        resolve();
+      });
+    });
+
+    host = "127.0.0.1";
+
+    const data = `{"hello":"world"}`;
+
+    const createOptions: CreateSignatureHeaderOptions = {
+      url: `http://127.0.0.1/test`,
+      method: "POST",
+      signer: { keyid: "key1", sign: algMap[AlgorithmTypes["ecdsa-p256-sha256"]].sign(ecdsaP256KeyPair.privateKey) },
+      expires: 10000000000,
+      nonce: "abcd",
+      httpHeaders: {
+        ["HOST"]: host,
+        ["Content-Type"]: "application/json",
+      },
+      alg: AlgorithmTypes["ecdsa-p256-sha256"],
+      body: data,
+    };
+    await createSignatureHeader(createOptions).then((res) => {
+      expect(res.isOk()).toBe(true);
+      res.isOk() ? (createSignatureResult = res.value) : undefined;
+    });
+
+    const validHttpHeaderInput = {
+      Signature: createSignatureResult.signature,
+      "Signature-Input": createSignatureResult.signatureInput,
+      "Content-Digest": createSignatureResult.digest,
+    };
+
+    await request(
+      {
+        host,
+        port,
+        path: "/test",
+        method: "POST",
+        headers: {
+          ...validHttpHeaderInput,
+          ["HOST"]: host,
+          ["Content-Type"]: "application/json",
+        },
+      },
+      data
+    ).then((res) =>
+      expect(res).toEqual({
+        body: { value: true },
+        headers: {
+          connection: "close",
+          "content-type": "application/json",
+          date: expect.any(String),
+          "transfer-encoding": "chunked",
+          "x-powered-by": "Express",
+        },
+        statusCode: 200,
+      })
+    );
+  });
 });
 
 describe("verifySignatureHeader", () => {
@@ -707,35 +898,8 @@ describe("verifySignatureHeader", () => {
     expect(unwrap(result)).toEqual(true);
   });
 
-  it("should be able to verify the signature from test B.2.4. in the spec", async () => {
-    // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-response-using-ec
-    const test_key_ecc_p256 = crypto
-      .createPublicKey({
-        key: `-----BEGIN PUBLIC KEY-----
-    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEqIVYZVLCrPZHGHjP17CTW0/+D9Lf
-    w0EkjqF7xB4FivAxzic30tMM4GF+hR6Dxh71Z50VGGdldkkDXZCnTNnoXQ==\n-----END PUBLIC KEY-----`,
-      })
-      .export({ format: "jwk" });
-
-    const result = await verifySignatureHeader({
-      httpHeaders: {
-        Signature: "sig-b24=:wNmSUAhwb5LxtOtOpNa6W5xj067m5hFrj0XQ4fvpaCLx0NKocgPquLgyahnzDnDAUy5eCdlYUEkLIj+32oiasw==:",
-        "Signature-Input":
-          'sig-b24=("@status" "content-type" "content-digest" "content-length");created=1618884473;keyid="test-key-ecc-p256"',
-        "Content-Digest":
-          "sha-512=:mEWXIS7MaLRuGgxOBdODa3xqM1XdEvxoYhvlCFJ41QJgJc4GTsPp29l5oGX69wWdXymyU0rjJuahq4l5aGgfLQ==:",
-        ["Content-Type"]: "application/json",
-        ["Content-Length"]: "23",
-      },
-      method: "POST",
-      url: "http://example.com/foo?param=Value&Pet=dog",
-      statusCode: 200,
-      body: `{"message": "good dog"}`,
-      verifier: { verify: verifyEcdsaSha256({ "test-key-ecc-p256": test_key_ecc_p256 }) },
-    });
-
-    expect(unwrap(result)).toEqual(true);
-  });
+  // TODO implement response signing so we can cover test B.2.4 from the spec
+  // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-response-using-ec
 
   it("should be able to verify the signature from test B.2.5. in the spec", async () => {
     // refer to https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#name-signing-a-request-using-hma

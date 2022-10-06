@@ -46,10 +46,6 @@ export type VerifySignatureHeaderOptions = {
    */
   readonly body?: Record<string, unknown> | string;
   /**
-   * When signing over a response, optionally sign over @status by including it in the covered fields list, and passing in the status code of the response
-   */
-  readonly statusCode?: number;
-  /**
    * Optional field to identify a single signature that should be verified from the signature header. If omitted, this function will attempt to verify all signatures present.
    */
   readonly signatureKey?: string;
@@ -70,7 +66,6 @@ export const verifySignatureHeader = (
     httpHeaders,
     url,
     body,
-    statusCode,
     signatureKey,
   } = options;
 
@@ -135,7 +130,6 @@ export const verifySignatureHeader = (
 
       const verifyDataRes = generateVerifyData({
         coveredFields,
-        statusCode,
         method,
         url,
         httpHeaders: httpHeadersToVerify,

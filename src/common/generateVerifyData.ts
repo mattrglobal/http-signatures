@@ -18,7 +18,6 @@ const isObjectKeysIgnoreCaseDuplicated = (obj: Record<string, unknown>): boolean
 
 type GenerateVerifyDataEntriesOptions = {
   readonly coveredFields: [string, Parameters][];
-  readonly statusCode?: number;
   readonly method: string;
   readonly url: string;
   readonly httpHeaders: { readonly [key: string]: string | string[] | undefined };
@@ -30,7 +29,7 @@ type GenerateVerifyDataEntriesOptions = {
  * note we return it as entries to guarantee order consistency
  */
 export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyDataEntry[], string> => {
-  const { coveredFields, url, httpHeaders, method, statusCode } = options;
+  const { coveredFields, url, httpHeaders, method } = options;
   const { path, pathname, query: queryString, host, protocol } = urlParser.parse(url);
   const { query: queryObj } = urlParser.parse(url, true);
 
@@ -46,8 +45,7 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
     pathname === null ||
     path == null ||
     protocol == null ||
-    (coveredFieldNames.includes("@query") && queryString == null) ||
-    (coveredFieldNames.includes("@status") && statusCode == undefined)
+    (coveredFieldNames.includes("@query") && queryString == null)
   ) {
     return err("Cannot resolve host, path, protocol and/or query from url");
   }
@@ -62,6 +60,7 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
       let queryParamName: string | undefined;
       if ((fieldName as string).startsWith("@")) {
         // derived components
+        // TODO implement signature parameter for status code
         switch (fieldName) {
           case "@request-target":
             newEntry = [field, path];
@@ -87,9 +86,6 @@ export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): R
           case "@query-param":
             queryParamName = fieldParams.get("name") as string | undefined;
             newEntry = queryParamName ? [field, queryObj[queryParamName]] : [field, ""];
-            break;
-          case "@status":
-            newEntry = [field, statusCode];
             break;
           default:
             newEntry = [field, ""];

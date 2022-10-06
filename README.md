@@ -2,6 +2,12 @@
 
 # http-signatures
 
+## Background
+
+This library is an implementation of the
+[HTTP Signatures IETF specification](https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html) with
+some added utils for ease of use.
+
 ## Getting Started
 
 ### Prerequisites
@@ -18,64 +24,6 @@ yarn build
 ### Usage
 
 #### Create signature
-
-With node http
-
-```typescript
-const request = http.request("example.com");
-const signResult = await signRequest({
-  alg: AlgorithmTypes["ecdsa-p256-sha256"],
-  key: privateKey,
-  keyid: "key1",
-  request,
-});
-if (signResult.isErr()) {
-  onError(result.error);
-}
-if (signResult.isOk()) {
-  const signedRequest = signResult.value;
-  signedRequest.then((res) => {
-    // process response
-  });
-}
-// Optional data parameter handles request body
-const request = http.post("example.com");
-const signResult = await signRequest({
-  alg: AlgorithmTypes["ecdsa-p256-sha256"],
-  key: privateKey,
-  keyid: "key1",
-  request,
-  data: `{"some": "request body"}`,
-});
-if (signResult.isErr()) {
-  onError(result.error);
-}
-if (signResult.isOk()) {
-  const signedRequest = signResult.value;
-  signedRequest.then((res) => {
-    // process response
-  });
-}
-```
-
-With SuperAgent
-
-```typescript
-const request = superagent.post("example.com").send({ some: "body" }).set("Content-Type", "Application/Json");
-const signResult = await signRequest({
-  alg: AlgorithmTypes["ecdsa-p256-sha256"],
-  key: privateKey,
-  keyid: "key1",
-  request,
-});
-if (signResult.isErr()) {
-  onError(result.error);
-}
-if (signResult.isOk()) {
-  const signedRequest = signResult.value;
-  signedRequest.end();
-}
-```
 
 With axios config:
 
@@ -132,6 +80,58 @@ With node http
 With express
 
 ```typescript
+let app = express();
+
+app.use(bodyParser.json());
+
+app.post("/test", (req, res) => {
+  verifyRequest({
+    request: req,
+    keymap: { key1: publicKey },
+    alg,
+    data: req.body,
+  }).then((verifyResult) => {
+    if (verifyResult.isErr()) {
+      onError(verifyResult.error);
+    }
+    if (verifyResult.isOk()) {
+      console.log(`Is verified: ${verifyResult.value}`);
+    }
+  });
+});
+
+// Request body can be passed as a raw data string or as json
+
+let app = express();
+
+app.use(
+  bodyParser.json({
+    verify: function (req, res, buf) {
+      if (buf && buf.length) {
+        req.rawBody = buf.toString("utf8");
+      }
+    },
+  })
+);
+
+app.post("/test", (req: requestWithRawBody, res) => {
+  verifyRequest({
+    request: req,
+    keymap: { key1: ecdsaP256KeyPair.publicKey },
+    alg: AlgorithmTypes["ecdsa-p256-sha256"],
+    data: req.rawBody,
+  }).then((verifyResult) => {
+    if (verifyResult.isErr()) {
+      onError(verifyResult.error);
+    }
+    if (verifyResult.isOk()) {
+      console.log(`Is verified: ${verifyResult.value}`);
+    }
+  });
+});
+
+// or using verifySignatureHeader directly:
+
 const { headers, protocol, baseUrl, method, body } = request;
 const url = req.protocol + "://" + headers.host + req.baseUrl;
 const verifier = { verify: verifyFn };

@@ -3,9 +3,7 @@
  * All rights reserved
  * Confidential and proprietary
  */
-import http from "http";
 import crypto, { JsonWebKey, KeyObject } from "node:crypto";
-import superagent from "superagent";
 
 import { decodeBase64 } from "../../src/common";
 import {
@@ -16,13 +14,7 @@ import {
   signEd25519,
 } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
-import {
-  createSignatureHeader,
-  CreateSignatureHeaderOptions,
-  signRequest,
-  SignOptions,
-  AlgorithmTypes,
-} from "../../src/sign";
+import { createSignatureHeader, CreateSignatureHeaderOptions, AlgorithmTypes } from "../../src/sign";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 import { rsaPssPrivateKey, rsaPssPublicKey } from "../__fixtures__/rsaPssKeypair";
 
@@ -38,218 +30,10 @@ const ecdsaP384KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
   publicKey: ecdsaP384KeyObjects.publicKey.export({ format: "jwk" }),
   privateKey: ecdsaP384KeyObjects.privateKey.export({ format: "jwk" }),
 };
-const ed25519KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("ed25519");
-const ed25519KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
-  publicKey: ed25519KeyObjects.publicKey.export({ format: "jwk" }),
-  privateKey: ed25519KeyObjects.privateKey.export({ format: "jwk" }),
-};
 const rsaPssKeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
   publicKey: rsaPssPublicKey,
   privateKey: rsaPssPrivateKey,
 };
-const rsaV1_5KeyObjects: { publicKey: KeyObject; privateKey: KeyObject } = crypto.generateKeyPairSync("rsa", {
-  modulusLength: 4096,
-});
-const rsaV1_5KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
-  publicKey: rsaV1_5KeyObjects.publicKey.export({ format: "jwk" }),
-  privateKey: rsaV1_5KeyObjects.privateKey.export({ format: "jwk" }),
-};
-const hmacSharedSecret: JsonWebKey = crypto.createSecretKey(crypto.randomBytes(4096)).export({ format: "jwk" });
-
-describe("signRequest", () => {
-  let server: http.Server;
-  let host: string;
-  let port: number;
-
-  type Response = {
-    headers: Record<string, unknown>;
-    statusCode: number | undefined;
-    body: unknown;
-  };
-  const request = (httpoptions: http.RequestOptions, signOptions?: SignOptions): Promise<Response> => {
-    return new Promise<Response>((resolve, reject) => {
-      const req = http.request(httpoptions, (res) => {
-        const chunks: unknown[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => {
-          resolve({
-            headers: res.headers,
-            statusCode: res.statusCode,
-            body: JSON.parse(chunks.join("")),
-          });
-        });
-      });
-
-      if (signOptions) {
-        signRequest({ ...signOptions, request: req }).then((signResult) => {
-          if (signResult.isErr()) {
-            throw signResult.error;
-          } else {
-            const signedRequest = signResult.value;
-            signedRequest.on("error", (error) => reject(error));
-            signedRequest.end();
-          }
-        });
-      } else {
-        req.on("error", (error) => reject(error));
-        req.end();
-      }
-    });
-  };
-
-  type SuperAgentRequestOptions = {
-    url: string;
-    method: "get" | "post" | "put" | "patch" | "delete";
-    headers: { [key: string]: string };
-    body?: { [key: string]: string };
-  };
-  const superAgentRequest = (
-    requestOptions: SuperAgentRequestOptions,
-    signOptions?: SignOptions
-  ): Promise<Response> => {
-    return new Promise<Response>((resolve, reject) => {
-      const req = superagent[requestOptions.method](requestOptions.url);
-
-      if (requestOptions.body) {
-        req.send(requestOptions.body);
-      }
-
-      for (const key in requestOptions.headers) {
-        req.set(key, requestOptions.headers[key]);
-      }
-
-      if (signOptions) {
-        signRequest({ ...signOptions, request: req }).then((signResult) => {
-          if (signResult.isErr()) {
-            throw signResult.error;
-          } else {
-            const signedRequest = signResult.value;
-            signedRequest.end((err, res) => {
-              if (err) {
-                reject(err);
-              }
-              resolve({
-                headers: res.headers,
-                statusCode: res.statusCode,
-                body: res.body,
-              });
-            });
-          }
-        });
-      }
-    });
-  };
-
-  beforeAll(async () => {
-    server = http.createServer((req, res) => {
-      if (req.url === "/test") {
-        const data = {
-          headers: req.headers,
-        };
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(data));
-      } else {
-        res.writeHead(404, { "Content-Type": "text/plain" });
-        res.end(JSON.stringify({ error: "Not Found" }));
-      }
-    });
-
-    await new Promise<void>((resolve) => {
-      server.listen(() => resolve());
-    });
-
-    const address = server.address();
-    if (typeof address !== "object" || address == null) {
-      throw new Error("Unexpected server address");
-    }
-    host = "127.0.0.1";
-    port = address?.port;
-  });
-
-  afterAll(async () => {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => (err ? reject(err) : resolve()));
-    });
-  });
-
-  test.each([
-    [AlgorithmTypes["ecdsa-p256-sha256"], ecdsaP256KeyPair.privateKey],
-    [AlgorithmTypes["ecdsa-p384-sha384"], ecdsaP384KeyPair.privateKey],
-    [AlgorithmTypes.ed25519, ed25519KeyPair.privateKey],
-    [AlgorithmTypes["hmac-sha256"], hmacSharedSecret],
-    [AlgorithmTypes["rsa-pss-sha512"], rsaPssKeyPair.privateKey],
-    [AlgorithmTypes["rsa-v1_5-sha256"], rsaV1_5KeyPair.privateKey],
-  ])("Should sign a request with %s algorithm", async (alg: AlgorithmTypes, key: JsonWebKey) => {
-    const requestOptions = {
-      host,
-      port,
-      path: "/test",
-      method: "GET",
-      headers: {
-        "content-type": "text/plain",
-      },
-    };
-
-    const signOptions: SignOptions = {
-      alg,
-      key,
-      keyid: "key1",
-      data: `{"Hello": "World"}`,
-    };
-
-    const res = await request(requestOptions, signOptions);
-    expect(res.statusCode).toBe(200);
-    expect(res.headers).toEqual({
-      connection: "close",
-      date: expect.any(String),
-      "content-type": "application/json",
-      "transfer-encoding": "chunked",
-    });
-    expect(res.body).toMatchObject({
-      headers: {
-        signature: expect.stringMatching(/^sig1=*.*:$/),
-        "signature-input": `sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="${alg}";keyid="key1"`,
-      },
-    });
-  });
-
-  it("Should sign a request created by SuperAgent", async () => {
-    const requestOptions: SuperAgentRequestOptions = {
-      url: `http://${host}:${port}/test`,
-      method: "post",
-      headers: {
-        "Content-Type": "Application/Json",
-        host,
-      },
-      body: {
-        Hello: "World",
-      },
-    };
-
-    const signOptions: SignOptions = {
-      alg: AlgorithmTypes["ecdsa-p256-sha256"],
-      key: ecdsaP256KeyPair.privateKey,
-      keyid: "key1",
-    };
-
-    const res = await superAgentRequest(requestOptions, signOptions);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.headers).toEqual({
-      connection: "close",
-      date: expect.any(String),
-      "content-type": "application/json",
-      "transfer-encoding": "chunked",
-    });
-    expect(res.body).toMatchObject({
-      headers: {
-        signature: expect.stringMatching(/^sig1=*.*:$/),
-        "signature-input":
-          'sig1=("@request-target" "@method" "content-digest" "content-type" "host");created=1577836800;alg="ecdsa-p256-sha256";keyid="key1"',
-      },
-    });
-  });
-});
 
 describe("createSignatureHeader", () => {
   Date.now = jest.fn(() => 1577836800000);
