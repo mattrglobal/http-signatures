@@ -11,7 +11,7 @@ import { generateDigest } from "../common";
 export const verifyDigest = (
   digest: string | string[],
   body: Record<string, unknown> | string | undefined,
-  digestAlg: string
+  digestAlgorithm: string
 ): boolean => {
   if (Array.isArray(digest)) {
     return false;
@@ -21,5 +21,5 @@ export const verifyDigest = (
     return false;
   }
 
-  return pipe(generateDigest, equals(digest))(body, digestAlg);
+  return pipe(generateDigest, equals(digest))(body, digestAlgorithm);
 };

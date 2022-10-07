@@ -207,7 +207,7 @@ A number of metadata properties are available to be added during the signature's
 ```typescript
 import { AlgorithmTypes, createSignatureHeader } from "mattrglobal/http-signatures";
 
-const expires = 12345678;
+const expires = 1665107239;
 const nonce = "test-nonce";
 const alg = AlgorithmTypes["ecdsa-p256-sha256"];
 const keyid = "key-abc";
@@ -225,7 +225,7 @@ const result = await createSignatureHeader({
   tag,
 });
 
-// produces a signature with the following signature-params: (@request-target @method)created=1234;expires=12345678;nonce="test-nonce";alg="ecdsa-p256-sha256";keyid='key-abc';tag='application-specific-context'
+// produces a signature with the following signature-params: (@request-target @method)created=1630109947;expires=1665107239;nonce="test-nonce";alg="ecdsa-p256-sha256";keyid='key-abc';tag='application-specific-context'
 ```
 
 The 'created' parameter will always be added during the signature's creation, and does not need to be provided as an

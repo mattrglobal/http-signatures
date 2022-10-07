@@ -6,9 +6,12 @@
 
 import { decode as base64Decode } from "@stablelib/base64";
 import { Buffer } from "buffer";
+import { JsonWebKey } from "crypto";
 import { err, ok, Result } from "neverthrow";
 import { join, pipe, split } from "ramda";
 import { serializeItem } from "structured-headers";
+
+import { AlgorithmTypes } from "../sign";
 
 import { VerifyDataEntry } from "./types";
 
@@ -46,6 +49,31 @@ export const generateSignatureBytes = pipe(
   },
   stringToBytes
 );
+
+export const getAlgFromJwk = (jwk: JsonWebKey): AlgorithmTypes | undefined => {
+  switch (jwk.kty) {
+    case "EC":
+      if (jwk.crv == "P-256") {
+        return AlgorithmTypes["ecdsa-p256-sha256"];
+      }
+      if (jwk.crv == "P-384") {
+        return AlgorithmTypes["ecdsa-p384-sha384"];
+      }
+      return undefined;
+    case "RSA":
+      // TODO implement logic for determining appropriate rsa alg from jwk input
+      return undefined;
+
+    case "OKP":
+      return AlgorithmTypes.ed25519;
+
+    case "oct":
+      return AlgorithmTypes["hmac-sha256"];
+
+    default:
+      return undefined;
+  }
+};
 
 export * from "./generateDigest";
 export * from "./generateVerifyData";

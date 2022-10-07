@@ -127,7 +127,7 @@ describe("verifyRequest", () => {
             verifyRequest({
               verifier: { keyMap: { key1: { key: publicKey, alg } } },
               request: req,
-              data: reqdata,
+              body: reqdata,
             }).then(async (verifyResult) => {
               expect(unwrap(verifyResult)).toEqual(true);
               await new Promise<void>((resolve, reject) => {
@@ -221,7 +221,7 @@ describe("verifyRequest", () => {
         verifyRequest({
           request: req,
           verifier: { keyMap: { key1: { key: publicKey, alg } } },
-          data: req.body,
+          body: req.body,
         }).then((verifyResult) => {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify(verifyResult));
@@ -317,7 +317,7 @@ describe("verifyRequest", () => {
       verifyRequest({
         request: req,
         verifier: { keyMap: { key1: { key: ecdsaP256KeyPair.publicKey, alg: AlgorithmTypes["ecdsa-p256-sha256"] } } },
-        data: req.rawBody,
+        body: req.rawBody,
       }).then((verifyResult) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(verifyResult));

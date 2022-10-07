@@ -5,9 +5,8 @@
  */
 
 import http from "http";
-import { errAsync, ResultAsync } from "neverthrow";
+import { ResultAsync } from "neverthrow";
 
-import { getSignatureData, reduceKeysToLowerCase } from "../common";
 import { VerifySignatureHeaderError } from "../errors";
 
 import { Verifier } from "./verifySignatureHeader";
@@ -17,21 +16,10 @@ export type VerifyRequestOptions = {
   verifier: Verifier;
   request: http.IncomingMessage;
   signatureKey?: string;
-  data?: string;
+  body?: string;
 };
 export const verifyRequest = (options: VerifyRequestOptions): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  const { request, verifier, data, signatureKey } = options;
-
-  const lowerCaseHttpHeaders = reduceKeysToLowerCase(request.headers);
-  const { signature: signatureString, "signature-input": signatureInputString } = lowerCaseHttpHeaders;
-  if (typeof signatureString !== "string" || typeof signatureInputString !== "string") {
-    return errAsync({ type: "VerifyFailed", message: "" });
-  }
-
-  const getSignatureDataResult = getSignatureData(signatureString, signatureInputString);
-  if (getSignatureDataResult.isErr()) {
-    return errAsync({ type: "VerifyFailed", message: getSignatureDataResult.error });
-  }
+  const { request, verifier, body, signatureKey } = options;
 
   return verifySignatureHeader({
     url: `http://${request.headers.host}${request.url}` ?? "",
@@ -39,6 +27,6 @@ export const verifyRequest = (options: VerifyRequestOptions): ResultAsync<boolea
     httpHeaders: request.headers,
     signatureKey: signatureKey,
     verifier,
-    ...(data && { body: data }),
+    ...(body && { body }),
   });
 };

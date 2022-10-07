@@ -18,32 +18,36 @@ import {
   HttpHeaders,
   reduceKeysToLowerCase,
   getSignatureData,
+  getAlgFromJwk,
 } from "../common";
 import { algMap } from "../common/cryptoPrimatives";
 import { VerifySignatureHeaderError } from "../errors";
 
 import { verifyDigest } from "./verifyDigest";
 
-export type Verifier = {
-  /**
-   * A map of the cryptographic keys to use to verify the signatures on an http message. Default
-   * cryptographic functions will be used
-   */
-  keyMap?: {
-    [keyid: string]: {
-      alg?: AlgorithmTypes;
-      key: JsonWebKey;
+export type Verifier =
+  | {
+      /**
+       * A map of the cryptographic keys to use to verify the signatures on an http message. Default
+       * cryptographic functions will be used
+       */
+      keyMap: {
+        [keyid: string]: {
+          alg?: AlgorithmTypes;
+          key: JsonWebKey;
+        };
+      };
+    }
+  | {
+      /**
+       * A Custom verification function to be run agaist each signature on an http message.
+       */
+      verify: (
+        signatureParams: { keyid: string; alg: AlgorithmTypes },
+        data: Uint8Array,
+        signature: Uint8Array
+      ) => Promise<boolean>;
     };
-  };
-  /**
-   * A Custom verification function to be run agaist each signature on an http message.
-   */
-  verify?: (
-    signatureParams: { keyid: string; alg: AlgorithmTypes },
-    data: Uint8Array,
-    signature: Uint8Array
-  ) => Promise<boolean>;
-};
 
 export type VerifySignatureHeaderOptions = {
   readonly verifier: Verifier;
@@ -79,14 +83,10 @@ export type VerifySignatureHeaderOptions = {
 export const verifySignatureHeader = (
   options: VerifySignatureHeaderOptions
 ): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  const {
-    verifier: { keyMap, verify },
-    method,
-    httpHeaders,
-    url,
-    body,
-    signatureKey,
-  } = options;
+  const { verifier, method, httpHeaders, url, body, signatureKey } = options;
+
+  const keyMap = "keyMap" in verifier && verifier.keyMap;
+  const verify = "verify" in verifier && verifier.verify;
 
   const verifications = [];
 
@@ -131,7 +131,10 @@ export const verifySignatureHeader = (
       const keyMapData = keyMap ? keyMap[keyid] : undefined;
 
       // Use algorithm submitted from user, otherwise attempt to determine it from the signature-input header
-      const alg = (keyMapData && keyMapData.alg) ?? (parameters.get("alg") as AlgorithmTypes | undefined);
+      const alg =
+        (keyMapData && keyMapData.alg) ??
+        (parameters.get("alg") as AlgorithmTypes | undefined) ??
+        (keyMapData && getAlgFromJwk(keyMapData.key));
 
       if (!alg) {
         return okAsync(false);
