@@ -55,9 +55,10 @@ With node http
 
 ```typescript
 
+    // Using a keymap and default cryptographic functions
+
     const server = http.createServer((req, res) => {
-      const alg = AlgorithmTypes["ecdsa-p256-sha256"];
-      const keyMap = { key1: { key: myEcdsap256PublicKey, alg }};
+      const keyMap = { key1: { key: myEcdsap256PublicKey }};
 
       let reqdata = "";
       req.on("data", (chunk) => {
@@ -65,7 +66,32 @@ With node http
       });
 
       req.on("end", () => {
-        verifyRequest({ keyMap, request: req, data: reqdata }).then((verifyResult) => {
+        verifyRequest({ verifier: {keyMap}, request: req, data: reqdata }).then((verifyResult) => {
+          if(verifyResult.isErr()){
+            onError(verifyResult.error);
+          }
+          if(verifyResult.isOk()){
+            console.log(`Is verified: ${verifyResult.value}`);
+          }
+        });
+      }
+    }
+
+    // Using custom cryptographic functions
+
+    const myVerifyFn = async (signatureParams, data, signature) => {
+      // Use signatureParams.alg and signatureParams.keyid to determine appropriate cryptographic methods
+      return verifyResult
+    }
+
+    const server = http.createServer((req, res) => {
+      let reqdata = "";
+      req.on("data", (chunk) => {
+        reqdata += chunk;
+      });
+
+      req.on("end", () => {
+        verifyRequest({ verifier: { verify: myVerifyFn }, request: req, data: reqdata }).then((verifyResult) => {
           if(verifyResult.isErr()){
             onError(verifyResult.error);
           }
@@ -80,26 +106,7 @@ With node http
 With express
 
 ```typescript
-let app = express();
-
-app.use(bodyParser.json());
-
-app.post("/test", (req, res) => {
-  verifyRequest({
-    request: req,
-    keyMap: { key1: { key: myEcdsap256PublicKey, alg: AlgorithmTypes["ecdsa-p256-sha256"] } },
-    data: req.body,
-  }).then((verifyResult) => {
-    if (verifyResult.isErr()) {
-      onError(verifyResult.error);
-    }
-    if (verifyResult.isOk()) {
-      console.log(`Is verified: ${verifyResult.value}`);
-    }
-  });
-});
-
-// Request body can be passed as a raw data string or as json
+// To ensure it can produce the same HTTP content digest, the raw HTTP content should be used for the body to avoid any lossy transform by a body parser middleware.
 
 let app = express();
 
@@ -113,11 +120,34 @@ app.use(
   })
 );
 
-app.post("/test", (req: requestWithRawBody, res) => {
+app.post("/test", (req, res) => {
+  const keyMap = { key1: { key: myEcdsap256PublicKey } };
   verifyRequest({
     request: req,
-    keyMap: { key1: { key: myEcdsap256PublicKey, alg: AlgorithmTypes["ecdsa-p256-sha256"] } },
+    verifier: { keyMap },
     data: req.rawBody,
+  }).then((verifyResult) => {
+    if (verifyResult.isErr()) {
+      onError(verifyResult.error);
+    }
+    if (verifyResult.isOk()) {
+      console.log(`Is verified: ${verifyResult.value}`);
+    }
+  });
+});
+
+// In the case of a JSON parser, as long as there's no special replacer that would manipulate the original body, it would also be fine to stringify it back to the same HTTP body content.
+
+const keyMap = { key1: { key: myEcdsap256PublicKey } };
+let app = express();
+
+app.use(bodyParser.json());
+
+app.post("/test", (req, res) => {
+  verifyRequest({
+    request: req,
+    verifier: { keyMap },
+    data: req.body,
   }).then((verifyResult) => {
     if (verifyResult.isErr()) {
       onError(verifyResult.error);
@@ -132,8 +162,8 @@ app.post("/test", (req: requestWithRawBody, res) => {
 
 const { headers, protocol, baseUrl, method, body } = request;
 const url = req.protocol + "://" + headers.host + req.baseUrl;
-const keyMap = { key1: { verify: verifyFn } };
-const options = { keyMap, url, method, httpHeaders: headers, body };
+const keyMap = { key1: { key: myEcdsap256PublicKey } };
+const options = { verifier: { keyMap }, url, method, httpHeaders: headers, body };
 
 const result = await verifySignatureHeader(options);
 
@@ -175,7 +205,7 @@ https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#na
 A number of metadata properties are available to be added during the signature's creation:
 
 ```typescript
-import { AlgorithmTypes, createSignatureHeader } from "http-signatures";
+import { AlgorithmTypes, createSignatureHeader } from "mattrglobal/http-signatures";
 
 const expires = 12345678;
 const nonce = "test-nonce";
@@ -211,30 +241,24 @@ https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-13.html#na
 
 ### Cryptography
 
-Minimal cryptographic primitives are available for each of the signature algorithms. They are implemented using the
-native node crypto library.
+Cryptographic primitives are available for each of the signature algorithms. They are implemented using the native node
+crypto library.
 
 ```typescript
-import { signEcdsaP256Sha256, verifyEcdsaP256Sha256, algMap, AlgorithmTypes } from "http-signatures";
+import { verifyDefault, algMap, AlgorithmTypes } from "mattrglobal/http-signatures";
 
 const ecdsaP256Sha256 = algMap[AlgorithmTypes["ecdsa-p256-sha256"]];
 
 signer = { keyid: "key1", sign: ecdsaP256Sha256.sign(myPrivateKey) };
-verifier = { keyid: "key1", verify: ecdsaP256Sha256.verify({ key1: myPublicKey }) };
+verifier = { verify: verifyDefault({ key1: { key: myPublicKey } }) };
 
-// or directly
-
-signer = { keyid: "key1", sign: signEcdsaP256Sha256(myPrivateKey) };
-verifier = { keyid: "key1", verify: verifyEcdsaP256Sha256({ key1: myPublicKey }) };
-
-const result = await createSignatureHeader({ signer, httpHeaders, method, url });
+const signatureData = await createSignatureHeader({ signer, httpHeaders, method, url });
 
 const result = await verifySignatureHeader({ verifier, url, method, httpHeaders, body });
 ```
 
 Usage of these crypto primitives is not required, and acceptable substitute sign/verify functions for your applications
-can be used instead. The SignRequest and VerifyRequest functions use these directly, so they should not be used if
-you're intending to use or implement your own crypto.
+can be used instead.
 
 ## Security Policy
 

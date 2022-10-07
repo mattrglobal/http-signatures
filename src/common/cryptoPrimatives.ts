@@ -4,6 +4,7 @@
  * Confidential and proprietary
  */
 import crypto, { JsonWebKey } from "crypto";
+import { AlgorithmTypes } from "src/sign";
 
 export const signEcdsaSha256 =
   (key: JsonWebKey) =>
@@ -126,6 +127,16 @@ type VerifyFunction = (data: Uint8Array, signature: Uint8Array) => Promise<boole
 type SignFunctionWrapper = (privateKey: JsonWebKey) => SignFunction;
 
 type SignFunction = (data: Uint8Array) => Promise<Uint8Array>;
+
+export const verifyDefault =
+  (keyMap: { [keyid: string]: { key: JsonWebKey } }) =>
+  async (
+    signatureParams: { keyid: string; alg: AlgorithmTypes },
+    data: Uint8Array,
+    signature: Uint8Array
+  ): Promise<boolean> => {
+    return algMap[signatureParams.alg].verify(keyMap[signatureParams.keyid].key)(data, signature);
+  };
 
 export const algMap: {
   [key: string]: {

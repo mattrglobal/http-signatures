@@ -10,9 +10,6 @@ import { includes, pickBy, toLower } from "ramda";
 import { AlgorithmTypes } from "src/sign";
 import { parseDictionary, serializeList, serializeDictionary, InnerList } from "structured-headers";
 
-// accepts keymap, each key has optional verify function
-// if no verify function is presented, determine appropriate default from cryptoPrimitives
-
 import {
   decodeBase64,
   VerifyDataEntry,
@@ -27,18 +24,29 @@ import { VerifySignatureHeaderError } from "../errors";
 
 import { verifyDigest } from "./verifyDigest";
 
-export type VerifySignatureHeaderOptions = {
+export type Verifier = {
   /**
-   * A map of the cryptographic keys to use to verify the signatures and their verification functions.
-   *  If no verify function is present for a key, default cryptographic methods will be used.
+   * A map of the cryptographic keys to use to verify the signatures on an http message. Default
+   * cryptographic functions will be used
    */
-  readonly keyMap: {
+  keyMap?: {
     [keyid: string]: {
       alg?: AlgorithmTypes;
-      key?: JsonWebKey;
-      verify?: (data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
+      key: JsonWebKey;
     };
   };
+  /**
+   * A Custom verification function to be run agaist each signature on an http message.
+   */
+  verify?: (
+    signatureParams: { keyid: string; alg: AlgorithmTypes },
+    data: Uint8Array,
+    signature: Uint8Array
+  ) => Promise<boolean>;
+};
+
+export type VerifySignatureHeaderOptions = {
+  readonly verifier: Verifier;
   /**
    * Full url of the request including query parameters
    */
@@ -71,7 +79,14 @@ export type VerifySignatureHeaderOptions = {
 export const verifySignatureHeader = (
   options: VerifySignatureHeaderOptions
 ): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  const { keyMap, method, httpHeaders, url, body, signatureKey } = options;
+  const {
+    verifier: { keyMap, verify },
+    method,
+    httpHeaders,
+    url,
+    body,
+    signatureKey,
+  } = options;
 
   const verifications = [];
 
@@ -109,14 +124,14 @@ export const verifySignatureHeader = (
       const expires = parameters.get("expires");
       const keyid: string = parameters.get("keyid") as string;
 
-      if (!(keyid in keyMap)) {
+      if (keyMap && !(keyid in keyMap)) {
         return okAsync(false);
       }
 
-      const keyMapData = keyMap[keyid];
+      const keyMapData = keyMap ? keyMap[keyid] : undefined;
 
       // Use algorithm submitted from user, otherwise attempt to determine it from the signature-input header
-      const alg = keyMapData.alg ?? (parameters.get("alg") as AlgorithmTypes | undefined);
+      const alg = (keyMapData && keyMapData.alg) ?? (parameters.get("alg") as AlgorithmTypes | undefined);
 
       if (!alg) {
         return okAsync(false);
@@ -183,9 +198,9 @@ export const verifySignatureHeader = (
       }
       const { value: decodedSignature } = decodedSignatureRes;
 
-      if (keyMapData.verify) {
-        verifications.push(keyMapData.verify(bytesToVerify, Buffer.from(decodedSignature)));
-      } else if (keyMapData.key) {
+      if (verify) {
+        verifications.push(verify({ keyid, alg }, bytesToVerify, Buffer.from(decodedSignature)));
+      } else if (keyMapData) {
         verifications.push(algMap[alg].verify(keyMapData.key)(bytesToVerify, Buffer.from(decodedSignature)));
       } else {
         return errAsync({

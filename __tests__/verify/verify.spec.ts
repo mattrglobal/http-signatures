@@ -17,15 +17,7 @@ import {
   AlgorithmTypes,
 } from "../../src";
 import * as common from "../../src/common";
-import {
-  algMap,
-  signEcdsaSha256,
-  signEd25519,
-  verifyEcdsaSha256,
-  verifyEd25519,
-  verifyHmacSha256,
-  verifyRsaPssSha512,
-} from "../../src/common/cryptoPrimatives";
+import { algMap, signEcdsaSha256, signEd25519, verifyDefault } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
 import { rsaPssPrivateKey, rsaPssPublicKey } from "../__fixtures__/rsaPssKeypair";
@@ -66,8 +58,8 @@ const rsaV1_5KeyPair: { publicKey: JsonWebKey; privateKey: JsonWebKey } = {
   privateKey: rsaV1_5KeyObjects.privateKey.export({ format: "jwk" }),
 };
 const keyMap = {
-  key1: { key: ecdsaP256KeyPair.publicKey, verify: verifyEcdsaSha256(ecdsaP256KeyPair.publicKey) },
-  key2: { key: ecdsaP256KeyPairTwo.publicKey, verify: verifyEcdsaSha256(ecdsaP256KeyPairTwo.publicKey) },
+  key1: { key: ecdsaP256KeyPair.publicKey },
+  key2: { key: ecdsaP256KeyPairTwo.publicKey },
 };
 const hmacSharedSecret: JsonWebKey = crypto.createSecretKey(crypto.randomBytes(4096)).export({ format: "jwk" });
 
@@ -132,14 +124,16 @@ describe("verifyRequest", () => {
           });
 
           req.on("end", () => {
-            verifyRequest({ keyMap: { key1: { key: publicKey, alg } }, request: req, data: reqdata }).then(
-              async (verifyResult) => {
-                expect(unwrap(verifyResult)).toEqual(true);
-                await new Promise<void>((resolve, reject) => {
-                  server.close((err) => (err ? reject(err) : resolve()));
-                });
-              }
-            );
+            verifyRequest({
+              verifier: { keyMap: { key1: { key: publicKey, alg } } },
+              request: req,
+              data: reqdata,
+            }).then(async (verifyResult) => {
+              expect(unwrap(verifyResult)).toEqual(true);
+              await new Promise<void>((resolve, reject) => {
+                server.close((err) => (err ? reject(err) : resolve()));
+              });
+            });
           });
 
           const data = {
@@ -226,7 +220,7 @@ describe("verifyRequest", () => {
       app.post("/test", (req, res) => {
         verifyRequest({
           request: req,
-          keyMap: { key1: { key: publicKey, alg } },
+          verifier: { keyMap: { key1: { key: publicKey, alg } } },
           data: req.body,
         }).then((verifyResult) => {
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -322,7 +316,7 @@ describe("verifyRequest", () => {
     app.post("/test", (req: requestWithRawBody, res) => {
       verifyRequest({
         request: req,
-        keyMap: { key1: { key: ecdsaP256KeyPair.publicKey, alg: AlgorithmTypes["ecdsa-p256-sha256"] } },
+        verifier: { keyMap: { key1: { key: ecdsaP256KeyPair.publicKey, alg: AlgorithmTypes["ecdsa-p256-sha256"] } } },
         data: req.rawBody,
       }).then((verifyResult) => {
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -441,7 +435,7 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       body: createSignatureHeaderOptions.body,
-      keyMap,
+      verifier: { keyMap },
     });
 
     expect(unwrap(result)).toEqual(true);
@@ -455,10 +449,30 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       body: createSignatureHeaderOptions.body,
-      keyMap,
+      verifier: { keyMap },
     });
 
     expect(unwrap(resultWithLowerCaseHeader)).toEqual(true);
+  });
+
+  it("Should verify a valid signature with a custom verify function", async () => {
+    const validHttpHeaderInput = {
+      Signature: createSignatureResult.signature,
+      "Signature-Input": createSignatureResult.signatureInput,
+      "Content-Digest": createSignatureResult.digest,
+    };
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        ...validHttpHeaderInput,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      body: createSignatureHeaderOptions.body,
+      verifier: { verify: verifyDefault(keyMap) },
+    });
+
+    expect(unwrap(result)).toEqual(true);
   });
 
   it("Should verify just one signature when a specific key is given", async () => {
@@ -475,7 +489,7 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       body: createSignatureHeaderOptions.body,
-      keyMap: { key2: keyMap.key2 },
+      verifier: { keyMap: { key2: keyMap.key2 } },
       signatureKey: "sig2",
     });
 
@@ -496,7 +510,7 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       body: createSignatureHeaderOptions.body,
-      keyMap: { key2: keyMap.key2 },
+      verifier: { keyMap: { key2: keyMap.key2 } },
       signatureKey: "abcdefg",
     });
 
@@ -517,7 +531,7 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       body: createSignatureHeaderOptions.body,
-      keyMap,
+      verifier: { keyMap },
     });
 
     expect(unwrap(result)).toEqual(true);
@@ -555,12 +569,14 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       body: createSignatureHeaderOptions.body,
-      keyMap: {
-        key1: {
-          key: ecdsaP256KeyPair.publicKey,
-        },
-        key2: {
-          key: ed25519KeyPair.publicKey,
+      verifier: {
+        keyMap: {
+          key1: {
+            key: ecdsaP256KeyPair.publicKey,
+          },
+          key2: {
+            key: ed25519KeyPair.publicKey,
+          },
         },
       },
     });
@@ -603,7 +619,7 @@ describe("verifySignatureHeader", () => {
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
       body: createSignatureHeaderOptions.body,
-      keyMap,
+      verifier: { keyMap },
     });
 
     expect(unwrap(result)).toEqual(true);
@@ -619,7 +635,7 @@ describe("verifySignatureHeader", () => {
       },
       method: "PUT",
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -637,7 +653,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -653,7 +669,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -665,7 +681,7 @@ describe("verifySignatureHeader", () => {
       httpHeaders: {},
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
     });
 
     expect(unwrap(result)).toEqual(false);
@@ -709,7 +725,7 @@ describe("verifySignatureHeader", () => {
         },
         method: createSignatureHeaderOptions.method,
         url: createSignatureHeaderOptions.url,
-        keyMap,
+        verifier: { keyMap },
         body: createSignatureHeaderOptions.body,
       });
       expect(result).toMatchObject({ value: false });
@@ -731,7 +747,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -751,7 +767,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -768,7 +784,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: `{ "tampered": "body" }`,
     });
 
@@ -785,7 +801,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
     });
 
     expect(unwrap(result)).toEqual(false);
@@ -801,7 +817,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -818,7 +834,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap,
+      verifier: { keyMap },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -837,7 +853,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap: { key1: { key: ecdsaP256KeyPair.publicKey, verify: badVerify } },
+      verifier: { verify: badVerify },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -865,7 +881,7 @@ describe("verifySignatureHeader", () => {
       },
       method: createSignatureHeaderOptions.method,
       url: createSignatureHeaderOptions.url,
-      keyMap: { key1: { key: ecdsaP256KeyPair.publicKey, verify: badVerify } },
+      verifier: { verify: badVerify },
       body: createSignatureHeaderOptions.body,
     });
 
@@ -892,11 +908,12 @@ describe("verifySignatureHeader", () => {
       method: "POST",
       url: "http://example.com/foo?param=Value&Pet=dog",
       body: `{"hello": "world"}`,
-      keyMap: {
-        "test-key-rsa-pss": {
-          key: rsa_pss_key,
-          verify: verifyRsaPssSha512(rsa_pss_key),
-          alg: AlgorithmTypes["rsa-pss-sha512"],
+      verifier: {
+        keyMap: {
+          "test-key-rsa-pss": {
+            key: rsa_pss_key,
+            alg: AlgorithmTypes["rsa-pss-sha512"],
+          },
         },
       },
     });
@@ -920,11 +937,12 @@ describe("verifySignatureHeader", () => {
       method: "POST",
       url: "http://example.com/foo?Pet=dog",
       body: `{"hello": "world"}`,
-      keyMap: {
-        "test-key-rsa-pss": {
-          key: rsa_pss_key,
-          verify: verifyRsaPssSha512(rsa_pss_key),
-          alg: AlgorithmTypes["rsa-pss-sha512"],
+      verifier: {
+        keyMap: {
+          "test-key-rsa-pss": {
+            key: rsa_pss_key,
+            alg: AlgorithmTypes["rsa-pss-sha512"],
+          },
         },
       },
     });
@@ -951,11 +969,12 @@ describe("verifySignatureHeader", () => {
       method: "POST",
       url: "http://example.com/foo?param=Value&Pet=dog",
       body: `{"hello": "world"}`,
-      keyMap: {
-        "test-key-rsa-pss": {
-          key: rsa_pss_key,
-          verify: verifyRsaPssSha512(rsa_pss_key),
-          alg: AlgorithmTypes["rsa-pss-sha512"],
+      verifier: {
+        keyMap: {
+          "test-key-rsa-pss": {
+            key: rsa_pss_key,
+            alg: AlgorithmTypes["rsa-pss-sha512"],
+          },
         },
       },
     });
@@ -988,7 +1007,9 @@ describe("verifySignatureHeader", () => {
       },
       method: "POST",
       url: "http://example.com/foo",
-      keyMap: { "test-shared-secret": { key: key, verify: verifyHmacSha256(key), alg: AlgorithmTypes["hmac-sha256"] } },
+      verifier: {
+        keyMap: { "test-shared-secret": { key: key, alg: AlgorithmTypes["hmac-sha256"] } },
+      },
     });
 
     expect(unwrap(result)).toEqual(true);
@@ -1013,8 +1034,10 @@ describe("verifySignatureHeader", () => {
       },
       method: "POST",
       url: "http://example.com/foo",
-      keyMap: {
-        "test-key-ed25519": { key: ed25519TestKey, verify: verifyEd25519(ed25519TestKey), alg: AlgorithmTypes.ed25519 },
+      verifier: {
+        keyMap: {
+          "test-key-ed25519": { key: ed25519TestKey, alg: AlgorithmTypes.ed25519 },
+        },
       },
     });
 
