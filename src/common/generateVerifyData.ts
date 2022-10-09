@@ -6,90 +6,97 @@
 
 import { err, ok, Result } from "neverthrow";
 import { equals, keys, length, map, not, pipe, toLower, uniq } from "ramda";
-import { InnerList } from "structured-headers";
+import { Item, Parameters } from "structured-headers";
 import urlParser from "url";
 
-import { VerifyData, VerifyDataEntry } from "./types";
+import { VerifyDataEntry } from "./types";
 
 export const reduceKeysToLowerCase = <T extends Record<string, unknown>>(obj: T): Record<string, T[keyof T]> =>
   Object.entries(obj).reduce((acc, [k, v]) => ({ ...acc, [k.toLowerCase()]: v }), {});
 const isObjectKeysIgnoreCaseDuplicated = (obj: Record<string, unknown>): boolean =>
   pipe(keys, map(toLower), uniq, length, equals(keys(obj).length), not)(obj);
 
-type RequiredSignatureData = {
-  readonly "@request-target": string;
-  readonly "@method": string;
-  readonly host: string;
-  key?: string;
-};
-
 type GenerateVerifyDataEntriesOptions = {
+  readonly coveredFields: [string, Parameters][];
   readonly method: string;
   readonly url: string;
   readonly httpHeaders: { readonly [key: string]: string | string[] | undefined };
   readonly existingSignatureKey?: string;
 };
 /**
- * Create an array of entries out of an object required for a signature
- * consisting of http headers, host, @request-target and @method fields
+ * Create an array of entries consisting of http headers and derived components
+ * (as per https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-12.html#name-derived-components)
  * note we return it as entries to guarantee order consistency
  */
-export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyData, string> => {
-  const { url, httpHeaders, method, existingSignatureKey } = options;
-  const { host, path } = urlParser.parse(url);
+export const generateVerifyData = (options: GenerateVerifyDataEntriesOptions): Result<VerifyDataEntry[], string> => {
+  const { coveredFields, url, httpHeaders, method } = options;
+  const { path, pathname, query: queryString, host, protocol } = urlParser.parse(url);
+  const { query: queryObj } = urlParser.parse(url, true);
 
   // Checks if a header key is duplicated with a different case eg. no instances of key and kEy
   if (isObjectKeysIgnoreCaseDuplicated(httpHeaders)) {
     return err("Duplicate case insensitive header keys detected, specify an array of values instead");
   }
 
-  if (host === null || path === null) {
-    return err("Cannot resolve host and path from url");
+  const coveredFieldNames = coveredFields.map((item) => item[0]);
+
+  if (
+    host === null ||
+    pathname === null ||
+    path == null ||
+    protocol == null ||
+    (coveredFieldNames.includes("@query") && queryString == null)
+  ) {
+    return err("Cannot resolve host, path, protocol and/or query from url");
   }
 
   const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
 
-  // Custom fields required by the specification
-  const requiredSignatureData: RequiredSignatureData = {
-    ["@request-target"]: path,
-    ["@method"]: method.toUpperCase(),
-    host,
-    ...("signature" in lowerCaseHttpHeaders && existingSignatureKey && { key: existingSignatureKey }), // if a signature header is included for a previous signature, its ID should be included in the covered fields labelled 'key'
-  };
+  const entries: VerifyDataEntry[] = coveredFields.reduce(
+    (entries: VerifyDataEntry[], field: Item): VerifyDataEntry[] => {
+      const [fieldName, fieldParams] = field;
 
-  const dataToSign: VerifyData = {
-    ...requiredSignatureData,
-    ...lowerCaseHttpHeaders,
-  };
+      let newEntry: VerifyDataEntry;
+      let queryParamName: string | undefined;
+      if ((fieldName as string).startsWith("@")) {
+        // derived components
+        // TODO implement signature parameter for status code
+        switch (fieldName) {
+          case "@request-target":
+            newEntry = [field, path];
+            break;
+          case "@method":
+            newEntry = [field, method.toUpperCase()];
+            break;
+          case "@authority":
+            newEntry = [field, host];
+            break;
+          case "@target-uri":
+            newEntry = [field, url];
+            break;
+          case "@path":
+            newEntry = [field, pathname];
+            break;
+          case "@query":
+            newEntry = [field, `?${queryString}` ?? ""];
+            break;
+          case "@scheme":
+            newEntry = [field, protocol];
+            break;
+          case "@query-param":
+            queryParamName = fieldParams.get("name") as string | undefined;
+            newEntry = queryParamName ? [field, queryObj[queryParamName]] : [field, ""];
+            break;
+          default:
+            newEntry = [field, ""];
+        }
+      } else {
+        newEntry = [field, lowerCaseHttpHeaders[fieldName as string]];
+      }
+      return [...entries, newEntry];
+    },
+    []
+  );
 
-  return ok(dataToSign);
-};
-
-export type GenereateSignatureParamsOptions = {
-  readonly data: VerifyDataEntry[];
-  readonly keyid: string;
-  readonly alg: string;
-  readonly created: number;
-  readonly expires?: number;
-  readonly nonce?: string;
-  readonly context?: string;
-  readonly existingSignatureKey?: string;
-};
-export const generateSignatureParams = (options: GenereateSignatureParamsOptions): InnerList => {
-  const { data, keyid, alg, existingSignatureKey, created, expires, nonce, context } = options;
-
-  return [
-    data.map(([key]: VerifyDataEntry) =>
-      key == "signature" && existingSignatureKey ? [key, new Map([["key", existingSignatureKey]])] : [key, new Map()]
-    ), // covered fields
-    new Map<string, string | number>([
-      // signature params
-      ["alg", alg],
-      ["keyid", keyid],
-      ["created", created],
-      ...(expires ? [["expires", expires] as const] : []),
-      ...(nonce ? [["nonce", nonce] as const] : []),
-      ...(context ? [["context", context] as const] : []),
-    ]),
-  ];
+  return ok(entries);
 };

@@ -6,27 +6,26 @@
 
 import { encode as base64Encode } from "@stablelib/base64";
 import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
-import { parseDictionary, Item, InnerList, serializeDictionary, serializeList } from "structured-headers";
+import { parseDictionary, Item, InnerList, serializeDictionary, serializeList, Parameters } from "structured-headers";
 
 import {
   generateDigest,
   generateSignatureBytes,
-  generateSignatureParams,
-  generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
+  VerifyDataEntry,
 } from "../common";
 import { CreateSignatureHeaderError } from "../errors";
 
 //  Algorithm list as per https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-12.html#section-6.1.2
 export enum AlgorithmTypes {
-  ["rsa-pss-sha512"] = "rsa-pss-sha512",
-  ["rsa-v1_5-sha256"] = "rsa-v1_5-sha256",
-  ["hmac-sha256"] = "hmac-sha256",
-  ["ecdsa-p256-sha256"] = "ecdsa-p256-sha256",
-  ["ecdsa-p384-sha384"] = "ecdsa-p384-sha384",
-  ["ed25519"] = "ed25519",
+  "rsa-pss-sha512" = "rsa-pss-sha512",
+  "rsa-v1_5-sha256" = "rsa-v1_5-sha256",
+  "hmac-sha256" = "hmac-sha256",
+  "ecdsa-p256-sha256" = "ecdsa-p256-sha256",
+  "ecdsa-p384-sha384" = "ecdsa-p384-sha384",
+  ed25519 = "ed25519",
 }
 
 export type CreateSignatureHeaderOptions = {
@@ -63,10 +62,6 @@ export type CreateSignatureHeaderOptions = {
    */
   readonly body?: Record<string, unknown> | string;
   /**
-   * If it's desired to sign over a previous signature, the key of the signature must be specified
-   */
-  readonly existingSignatureKey?: string;
-  /**
    * An optional expiry param as an Integer UNIX timestamp value, to indicate to the verifier a time after which this signature should no longer be trusted.
    * Sub- second precision is not supported.
    */
@@ -76,13 +71,17 @@ export type CreateSignatureHeaderOptions = {
    */
   readonly nonce?: string;
   /**
-   * An optional application specific context parameter
+   * An optional application specific tag parameter to provide additional context for the signature
    */
-  readonly context?: string;
+  readonly tag?: string;
   /**
    * The HTTP message signature algorithm from the HTTP Message Signature Algorithm Registry, as a String value.
    */
-  readonly alg: AlgorithmTypes;
+  readonly alg?: AlgorithmTypes;
+  /**
+   * An optional list of field names to cover in the signature. If omitted, a default list is used.
+   */
+  readonly coveredFields?: [string, Parameters][];
 };
 
 /**
@@ -94,6 +93,13 @@ export const createSignatureHeader = async (
   options: CreateSignatureHeaderOptions
 ): Promise<Result<{ digest?: string; signature: string; signatureInput: string }, CreateSignatureHeaderError>> => {
   try {
+    const bodyCovered = options.body ? ["content-digest"] : [];
+    const headersCovered = (
+      options.httpHeaders &&
+      Object.keys(options.httpHeaders)
+        .filter((header) => header.toLowerCase() != "signature" && header.toLowerCase() != "signature-input")
+        .map((a) => a.toLowerCase())
+    ).sort();
     const {
       signer: { keyid, sign },
       method,
@@ -101,11 +107,11 @@ export const createSignatureHeader = async (
       httpHeaders,
       body,
       url,
-      existingSignatureKey,
       expires,
       nonce,
-      context,
+      tag,
       alg,
+      coveredFields = ["@request-target", "@method", ...bodyCovered, ...headersCovered].map((a) => [a, new Map()]),
     } = options;
 
     const created = Math.floor(Date.now() / 1000);
@@ -156,9 +162,10 @@ export const createSignatureHeader = async (
       sigKeyToUse = signatureId ?? "sig1";
     }
 
-    const digest = body ? generateDigest(body) : undefined;
+    const digest = body ? generateDigest(body, "sha-256") : undefined;
 
     const verifyDataRes = generateVerifyData({
+      coveredFields,
       httpHeaders: {
         ...httpHeaders,
         // Append the digest if necessary
@@ -166,40 +173,25 @@ export const createSignatureHeader = async (
       },
       url,
       method,
-      existingSignatureKey,
     });
     if (verifyDataRes.isErr()) {
       return err({ type: "MalformedInput", message: verifyDataRes.error });
     }
 
-    const sortedEntriesRes = generateSortedVerifyDataEntries(verifyDataRes.value, [
-      "@request-target",
-      "content-type",
-      "host",
-      "@method",
-      ...(digest ? ["content-digest"] : []),
-      ...(existingSignatureKey ? ["signature"] : []),
+    const parameters = new Map<string, string | number>([
+      ["created", created],
+      ...(expires ? [["expires", expires] as const] : []),
+      ...(nonce ? [["nonce", nonce] as const] : []),
+      ...(alg ? [["alg", alg] as const] : []),
+      ["keyid", keyid],
+      ...(tag ? [["tag", tag] as const] : []),
     ]);
-    if (sortedEntriesRes.isErr()) {
-      return err({ type: "MalformedInput", message: sortedEntriesRes.error });
-    }
 
-    const { value: sortedEntries } = sortedEntriesRes;
-
-    const signatureParams = generateSignatureParams({
-      data: sortedEntries,
-      alg,
-      keyid,
-      existingSignatureKey,
-      created,
-      expires,
-      context,
-      nonce,
-    });
+    const signatureParams: InnerList = [verifyDataRes.value.map(([item]: VerifyDataEntry) => item), parameters];
 
     const bytesToSign = generateSignatureBytes([
-      ...sortedEntries,
-      ["@signature-params", serializeList([signatureParams])],
+      ...verifyDataRes.value,
+      [["@signature-params", new Map()], serializeList([signatureParams])],
     ]);
     const signResult = await ResultAsync.fromPromise(sign(bytesToSign), (e) => e);
 

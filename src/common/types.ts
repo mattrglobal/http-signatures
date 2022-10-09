@@ -4,12 +4,11 @@
  * Confidential and proprietary
  */
 
+import { Item } from "structured-headers";
+
 export type VerifyData = {
-  ["@request-target"]: string;
-  ["@method"]: string;
-  host: string;
   readonly [key: string]: string | string[];
 };
-export type VerifyDataEntry = [string, string | string[] | undefined];
+export type VerifyDataEntry = [Item, string | string[] | number | undefined];
 
 export type HttpHeaders = { readonly [key: string]: string | string[] | undefined };

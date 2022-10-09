@@ -4,31 +4,53 @@
  * Confidential and proprietary
  */
 
+import { JsonWebKey } from "crypto";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { includes, pickBy, toLower } from "ramda";
-import { parseDictionary, serializeList, serializeDictionary } from "structured-headers";
+import { AlgorithmTypes } from "src/sign";
+import { parseDictionary, serializeList, serializeDictionary, InnerList } from "structured-headers";
 
 import {
   decodeBase64,
-  generateSignatureParams,
+  VerifyDataEntry,
   generateSignatureBytes,
-  generateSortedVerifyDataEntries,
   generateVerifyData,
   HttpHeaders,
   reduceKeysToLowerCase,
+  getSignatureData,
+  getAlgFromJwk,
 } from "../common";
-import { getSignatureData } from "../common";
+import { algMap } from "../common/cryptoPrimatives";
 import { VerifySignatureHeaderError } from "../errors";
 
 import { verifyDigest } from "./verifyDigest";
 
+export type Verifier =
+  | {
+      /**
+       * A map of the cryptographic keys to use to verify the signatures on an http message. Default
+       * cryptographic functions will be used
+       */
+      keyMap: {
+        [keyid: string]: {
+          alg?: AlgorithmTypes;
+          key: JsonWebKey;
+        };
+      };
+    }
+  | {
+      /**
+       * A Custom verification function to be run agaist each signature on an http message.
+       */
+      verify: (
+        signatureParams: { keyid: string; alg: AlgorithmTypes },
+        data: Uint8Array,
+        signature: Uint8Array
+      ) => Promise<boolean>;
+    };
+
 export type VerifySignatureHeaderOptions = {
-  readonly verifier: {
-    /**
-     * The function for verifying the signature
-     */
-    readonly verify: (keyid: string, data: Uint8Array, signature: Uint8Array) => Promise<boolean>;
-  };
+  readonly verifier: Verifier;
   /**
    * Full url of the request including query parameters
    */
@@ -61,25 +83,23 @@ export type VerifySignatureHeaderOptions = {
 export const verifySignatureHeader = (
   options: VerifySignatureHeaderOptions
 ): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  const {
-    verifier: { verify },
-    method,
-    httpHeaders,
-    url,
-    body,
-    signatureKey,
-  } = options;
+  const { verifier, method, httpHeaders, url, body, signatureKey } = options;
+
+  const keyMap = "keyMap" in verifier && verifier.keyMap;
+  const verify = "verify" in verifier && verifier.verify;
 
   const verifications = [];
 
   try {
     // need to make sure signature header is in lower case
     // SuperTest set() convert header to lower case
+
     const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
     const { signature: signatureString, "signature-input": signatureInputString } = lowerCaseHttpHeaders;
     if (typeof signatureString !== "string" || typeof signatureInputString !== "string") {
       return okAsync(false);
     }
+
     const getSignatureDataResult = getSignatureData(signatureString, signatureInputString);
     if (getSignatureDataResult.isErr()) {
       return okAsync(false);
@@ -96,20 +116,29 @@ export const verifySignatureHeader = (
       if (signatureKey && signatureId != signatureKey) {
         continue;
       }
-
-      const {
-        coveredFields: coveredFields = [],
-        keyid,
-        created,
-        alg,
-        signature,
-        expires,
-        nonce,
-        context,
-      } = signatureSet[signatureId];
+      const { coveredFields: coveredFields = [], parameters, signature } = signatureSet[signatureId];
 
       const currentTime = Math.floor(Date.now() / 1000);
       const coveredFieldNames = coveredFields.map((item) => item[0]);
+
+      const expires = parameters.get("expires");
+      const keyid: string = parameters.get("keyid") as string;
+
+      if (keyMap && !(keyid in keyMap)) {
+        return okAsync(false);
+      }
+
+      const keyMapData = keyMap ? keyMap[keyid] : undefined;
+
+      // Use algorithm submitted from user, otherwise attempt to determine it from the signature-input header
+      const alg =
+        (keyMapData && keyMapData.alg) ??
+        (parameters.get("alg") as AlgorithmTypes | undefined) ??
+        (keyMapData && getAlgFromJwk(keyMapData.key));
+
+      if (!alg) {
+        return okAsync(false);
+      }
 
       if (expires && expires < currentTime) {
         return okAsync(false);
@@ -135,6 +164,7 @@ export const verifySignatureHeader = (
       }
 
       const verifyDataRes = generateVerifyData({
+        coveredFields,
         method,
         url,
         httpHeaders: httpHeadersToVerify,
@@ -142,35 +172,28 @@ export const verifySignatureHeader = (
       if (verifyDataRes.isErr()) {
         return okAsync(false);
       }
+
       const { value: verifyData } = verifyDataRes;
 
-      const digest = verifyData["content-digest"];
+      const digestEntry = verifyData.find(([[e]]) => e == "content-digest");
       // Verify the digest if it's present
-      if (digest !== undefined && !verifyDigest(digest, body)) {
-        return okAsync(false);
+      if (digestEntry !== undefined && digestEntry[1] !== undefined) {
+        if (Array.isArray(digestEntry[1])) {
+          return okAsync(false);
+        }
+        const [digestAlg] = parseDictionary(digestEntry[1] as string).keys();
+        if (!verifyDigest(digestEntry[1] as string, body, digestAlg)) {
+          return okAsync(false);
+        }
       }
 
-      const sortedEntriesRes = generateSortedVerifyDataEntries(verifyData, coveredFieldNames);
-      if (sortedEntriesRes.isErr()) {
-        return okAsync(false);
-      }
-      const { value: sortedEntries } = sortedEntriesRes;
-
-      const signatureParams = generateSignatureParams({
-        data: sortedEntries,
-        alg,
-        keyid,
-        created,
-        expires,
-        nonce,
-        context,
-        ...(existingSignatureItem ? { existingSignatureKey } : {}),
-      });
+      const signatureParams: InnerList = [verifyDataRes.value.map(([item]: VerifyDataEntry) => item), parameters];
 
       const bytesToVerify = generateSignatureBytes([
-        ...sortedEntries,
-        ["@signature-params", serializeList([signatureParams])],
+        ...verifyData,
+        [["@signature-params", new Map()], serializeList([signatureParams])],
       ]);
+
       const decodedSignatureRes = decodeBase64(signature);
 
       if (decodedSignatureRes.isErr()) {
@@ -178,7 +201,16 @@ export const verifySignatureHeader = (
       }
       const { value: decodedSignature } = decodedSignatureRes;
 
-      verifications.push(verify(keyid, bytesToVerify, Buffer.from(decodedSignature)));
+      if (verify) {
+        verifications.push(verify({ keyid, alg }, bytesToVerify, Buffer.from(decodedSignature)));
+      } else if (keyMapData) {
+        verifications.push(algMap[alg].verify(keyMapData.key)(bytesToVerify, Buffer.from(decodedSignature)));
+      } else {
+        return errAsync({
+          type: "VerifyFailed",
+          message: `No key or verification function were provided for key ${keyid}`,
+        });
+      }
     }
 
     return ResultAsync.fromPromise(
