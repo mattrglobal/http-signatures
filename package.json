@@ -1,7 +1,7 @@
 {
   "name": "@mattrglobal/http-signatures",
-  "version": "2.0.0",
-  "description": "Http request signing and verifying",
+  "version": "3.0.0",
+  "description": "An implementation of Http request signing and verifying",
   "private": false,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -17,7 +17,7 @@
     "url": "git+https://github.com/mattrglobal/http-signatures.git"
   },
   "author": "MATTR",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/mattrglobal/http-signatures/issues"
   },
@@ -40,7 +40,6 @@
   "devDependencies": {
     "@commitlint/cli": "17.0.2",
     "@commitlint/config-conventional": "17.0.2",
-    "@stablelib/ed25519": "1.0.2",
     "@types/jest": "28.1.1",
     "@types/ramda": "0.27.32",
     "@typescript-eslint/eslint-plugin": "5.28.0",
@@ -53,10 +52,14 @@
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-import": "2.26.0",
     "eslint-plugin-node": "11.1.0",
+    "@types/express": "4.17.2",
+    "express": "4.17.1",
+    "body-parser": "1.20.0",
     "husky": "8.0.1",
     "jest": "28.1.1",
     "prettier": "2.7.1",
     "pretty-quick": "2.0.1",
+    "structured-headers": "0.5.0",
     "ts-jest": "28.0.5",
     "ts-node": "8.4.1",
     "typedoc": "0.22.17",
@@ -66,8 +69,8 @@
   "dependencies": {
     "@stablelib/base64": "1.0.1",
     "@stablelib/sha256": "1.0.1",
+    "@stablelib/sha512": "1.0.1",
     "buffer": "6.0.3",
-    "canonicalize": "1.0.8",
     "neverthrow": "3.0.0",
     "ramda": "0.27.1",
     "url": "0.11.0"

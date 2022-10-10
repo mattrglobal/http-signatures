@@ -7,8 +7,7 @@
 import { VerifyData } from "../../src/common";
 
 export const verifyData: VerifyData = {
-  ["(created)"]: "created",
+  ["@request-target"]: "request target",
+  ["@method"]: "POST",
   host: "host",
-  key1: "value",
-  ["(request-target)"]: "request target",
 };

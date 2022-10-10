@@ -10,7 +10,8 @@ import { generateDigest } from "../common";
 
 export const verifyDigest = (
   digest: string | string[],
-  body: Record<string, unknown> | string | undefined
+  body: Record<string, unknown> | string | undefined,
+  digestAlgorithm: string
 ): boolean => {
   if (Array.isArray(digest)) {
     return false;
@@ -20,5 +21,5 @@ export const verifyDigest = (
     return false;
   }
 
-  return pipe(generateDigest, equals(digest))(body);
+  return pipe(generateDigest, equals(digest))(body, digestAlgorithm);
 };
