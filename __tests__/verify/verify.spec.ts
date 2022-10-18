@@ -17,6 +17,7 @@ import {
   AlgorithmTypes,
 } from "../../src";
 import * as common from "../../src/common";
+import { VerifyFailureReasonType } from "../../src/common";
 import { algMap, signEcdsaSha256, signEd25519, verifyDefault } from "../../src/common/cryptoPrimatives";
 import { unwrap } from "../../src/errors";
 import { createSignatureHeaderOptions } from "../__fixtures__/createSignatureHeaderOptions";
@@ -129,7 +130,9 @@ describe("verifyRequest", () => {
               request: req,
               body: reqdata,
             }).then(async (verifyResult) => {
-              expect(unwrap(verifyResult)).toEqual(true);
+              expect(unwrap(verifyResult)).toMatchObject({
+                verified: true,
+              });
               await new Promise<void>((resolve, reject) => {
                 server.close((err) => (err ? reject(err) : resolve()));
               });
@@ -280,7 +283,7 @@ describe("verifyRequest", () => {
         data
       ).then((res) =>
         expect(res).toEqual({
-          body: { value: true },
+          body: { value: expect.objectContaining({ verified: true }) },
           headers: {
             connection: "close",
             "content-type": "application/json",
@@ -376,7 +379,7 @@ describe("verifyRequest", () => {
       data
     ).then((res) =>
       expect(res).toEqual({
-        body: { value: true },
+        body: { value: expect.objectContaining({ verified: true }) },
         headers: {
           connection: "close",
           "content-type": "application/json",
@@ -438,7 +441,9 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
 
     const lowerCaseValidHttpHeaderInput = common.reduceKeysToLowerCase(validHttpHeaderInput);
     const resultWithLowerCaseHeader = await verifySignatureHeader({
@@ -452,7 +457,9 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(resultWithLowerCaseHeader)).toEqual(true);
+    expect(unwrap(resultWithLowerCaseHeader)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("Should verify a valid signature with a custom verify function", async () => {
@@ -472,7 +479,9 @@ describe("verifySignatureHeader", () => {
       verifier: { verify: verifyDefault(keyMap) },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("Should verify just one signature when a specific key is given", async () => {
@@ -493,7 +502,9 @@ describe("verifySignatureHeader", () => {
       signatureKey: "sig2",
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("Should return verified false when a key is specified but not present in the signature", async () => {
@@ -514,7 +525,10 @@ describe("verifySignatureHeader", () => {
       signatureKey: "abcdefg",
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: expect.any(Object),
+    });
   });
 
   it("Should verify multiple valid signatures", async () => {
@@ -534,7 +548,9 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("Should verify multiple valid signatures with different algorithms", async () => {
@@ -581,7 +597,9 @@ describe("verifySignatureHeader", () => {
       },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("Should verify signatures that are signed over other signatures", async () => {
@@ -622,7 +640,9 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("Should return verified false when verifying a tampered signature", async () => {
@@ -639,7 +659,10 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: expect.any(Object),
+    });
   });
 
   it("Should ignore headers not included in a signature string headers", async () => {
@@ -657,7 +680,9 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("Should return verified false if headers to verify do not match headers defined in the signature string", async () => {
@@ -673,7 +698,10 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: expect.any(Object),
+    });
   });
 
   it("Should return verified false if signature header is not a string", async () => {
@@ -684,7 +712,10 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: expect.any(Object),
+    });
   });
 
   test.each([
@@ -728,7 +759,7 @@ describe("verifySignatureHeader", () => {
         verifier: { keyMap },
         body: createSignatureHeaderOptions.body,
       });
-      expect(result).toMatchObject({ value: false });
+      expect(result).toMatchObject({ value: { verified: false, reason: expect.any(Object) } });
     }
   );
 
@@ -751,12 +782,16 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: {
+        message: "Failed to decode signature sig1 from base64.",
+        type: VerifyFailureReasonType.SignatureDecodeFailure,
+      },
+    });
   });
 
   it("Should return verified false if included http headers contain duplicate case insensitive headers", async () => {
-    // NOTE: We don't return verified result error messages so cannot confirm exact place of failure just that it returned false
-    // We could achieve this by creating and running expects on spys surrounding the expected failure point
     const result = await verifySignatureHeader({
       httpHeaders: {
         ...createSignatureHeaderOptions.httpHeaders,
@@ -771,7 +806,16 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: {
+        type: VerifyFailureReasonType.GenerateVerifyDataFail,
+        message: "Unable to generate verify data for signature sig1.",
+        details: {
+          cause: "Duplicate case insensitive header keys detected, specify an array of values instead",
+        },
+      },
+    });
   });
 
   it("Should return verified false if the body has been tampered", async () => {
@@ -788,7 +832,10 @@ describe("verifySignatureHeader", () => {
       body: `{ "tampered": "body" }`,
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: expect.any(Object),
+    });
   });
 
   it("Should return verified false if the body is undefined but the content-digest header is not", async () => {
@@ -804,7 +851,10 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: expect.any(Object),
+    });
   });
 
   it("Should return verified false if the content-digest header is a string array", async () => {
@@ -821,7 +871,10 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: expect.any(Object),
+    });
   });
 
   it("Should return verified false if the expiry date has passed", async () => {
@@ -838,7 +891,13 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toEqual(false);
+    expect(unwrap(result)).toMatchObject({
+      verified: false,
+      reason: {
+        type: VerifyFailureReasonType.SignatureExpired,
+        message: "Signature sig1 has expired at timestamp 1. If you wish to ignore this, set verifyExpiry to false.",
+      },
+    });
   });
 
   it("Should return a handled error if an error is thrown in the verify function", async () => {
@@ -918,7 +977,9 @@ describe("verifySignatureHeader", () => {
       },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("should be able to verify the signature from test B.2.2. in the spec", async () => {
@@ -947,7 +1008,9 @@ describe("verifySignatureHeader", () => {
       },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("should be able to verify the signature from test B.2.3. in the spec", async () => {
@@ -979,7 +1042,9 @@ describe("verifySignatureHeader", () => {
       },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   // TODO implement response signing so we can cover test B.2.4 from the spec
@@ -1012,7 +1077,9 @@ describe("verifySignatureHeader", () => {
       },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 
   it("should be able to verify the signature from test B.2.6. in the spec", async () => {
@@ -1041,6 +1108,8 @@ describe("verifySignatureHeader", () => {
       },
     });
 
-    expect(unwrap(result)).toEqual(true);
+    expect(unwrap(result)).toMatchObject({
+      verified: true,
+    });
   });
 });

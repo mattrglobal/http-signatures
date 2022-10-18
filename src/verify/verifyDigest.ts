@@ -13,10 +13,6 @@ export const verifyDigest = (
   body: Record<string, unknown> | string | undefined,
   digestAlgorithm: string
 ): boolean => {
-  if (Array.isArray(digest)) {
-    return false;
-  }
-
   if (isNil(body)) {
     return false;
   }

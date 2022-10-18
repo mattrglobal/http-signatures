@@ -13,6 +13,8 @@ import { parseDictionary, serializeList, serializeDictionary, InnerList } from "
 import {
   decodeBase64,
   VerifyDataEntry,
+  VerifyResult,
+  VerifyFailureReasonType,
   generateSignatureBytes,
   generateVerifyData,
   HttpHeaders,
@@ -72,6 +74,11 @@ export type VerifySignatureHeaderOptions = {
    * Optional field to identify a single signature that should be verified from the signature header. If omitted, this function will attempt to verify all signatures present.
    */
   readonly signatureKey?: string;
+  /**
+   * Optionally set this field to false if you don't want to fail verification based on the signature being past its expiry timestamp.
+   * Defaults to true.
+   */
+  readonly verifyExpiry?: boolean;
 };
 
 /**
@@ -82,8 +89,8 @@ export type VerifySignatureHeaderOptions = {
  */
 export const verifySignatureHeader = (
   options: VerifySignatureHeaderOptions
-): ResultAsync<boolean, VerifySignatureHeaderError> => {
-  const { verifier, method, httpHeaders, url, body, signatureKey } = options;
+): ResultAsync<VerifyResult, VerifySignatureHeaderError> => {
+  const { verifier, method, httpHeaders, url, body, signatureKey, verifyExpiry = true } = options;
 
   const keyMap = "keyMap" in verifier && verifier.keyMap;
   const verify = "verify" in verifier && verifier.verify;
@@ -97,17 +104,35 @@ export const verifySignatureHeader = (
     const lowerCaseHttpHeaders = reduceKeysToLowerCase(httpHeaders);
     const { signature: signatureString, "signature-input": signatureInputString } = lowerCaseHttpHeaders;
     if (typeof signatureString !== "string" || typeof signatureInputString !== "string") {
-      return okAsync(false);
+      return okAsync({
+        verified: false,
+        reason: {
+          type: VerifyFailureReasonType.MissingOrInvalidSignature,
+          message: "Signature or Signature-Input header is invalid or missing.",
+        },
+      });
     }
 
     const getSignatureDataResult = getSignatureData(signatureString, signatureInputString);
     if (getSignatureDataResult.isErr()) {
-      return okAsync(false);
+      return okAsync({
+        verified: false,
+        reason: {
+          type: VerifyFailureReasonType.SignatureParseFailure,
+          message: "Unable to parse Signature and Signature-Input headers.",
+        },
+      });
     }
 
     if (signatureKey && !(signatureKey in getSignatureDataResult.value)) {
       // specified key could not be found in the signature input data
-      return okAsync(false);
+      return okAsync({
+        verified: false,
+        reason: {
+          type: VerifyFailureReasonType.MissingSignatureKey,
+          message: `Specified key ${signatureKey} could not be found in the signature headers.`,
+        },
+      });
     }
 
     const signatureSet = getSignatureDataResult.value;
@@ -125,7 +150,13 @@ export const verifySignatureHeader = (
       const keyid: string = parameters.get("keyid") as string;
 
       if (keyMap && !(keyid in keyMap)) {
-        return okAsync(false);
+        return okAsync({
+          verified: false,
+          reason: {
+            type: VerifyFailureReasonType.MissingJWK,
+            message: `JWK ${keyid} could not be found in the keymap provided.`,
+          },
+        });
       }
 
       const keyMapData = keyMap ? keyMap[keyid] : undefined;
@@ -137,11 +168,23 @@ export const verifySignatureHeader = (
         (keyMapData && getAlgFromJwk(keyMapData.key));
 
       if (!alg) {
-        return okAsync(false);
+        return okAsync({
+          verified: false,
+          reason: {
+            type: VerifyFailureReasonType.UndefinedAlgorithm,
+            message: `Signature ${signatureId} algortithm could not be determined from signature params or from any JWKs provided - specify an algorithm directly.`,
+          },
+        });
       }
 
-      if (expires && expires < currentTime) {
-        return okAsync(false);
+      if (verifyExpiry && expires && expires < currentTime) {
+        return okAsync({
+          verified: false,
+          reason: {
+            type: VerifyFailureReasonType.SignatureExpired,
+            message: `Signature ${signatureId} has expired at timestamp ${expires}. If you wish to ignore this, set verifyExpiry to false.`,
+          },
+        });
       }
 
       // filter http headers that aren't defined in the signature string headers field in order to create accurate verifyData
@@ -170,7 +213,16 @@ export const verifySignatureHeader = (
         httpHeaders: httpHeadersToVerify,
       });
       if (verifyDataRes.isErr()) {
-        return okAsync(false);
+        return okAsync({
+          verified: false,
+          reason: {
+            type: VerifyFailureReasonType.GenerateVerifyDataFail,
+            message: `Unable to generate verify data for signature ${signatureId}.`,
+            details: {
+              cause: verifyDataRes.error,
+            },
+          },
+        });
       }
 
       const { value: verifyData } = verifyDataRes;
@@ -179,11 +231,23 @@ export const verifySignatureHeader = (
       // Verify the digest if it's present
       if (digestEntry !== undefined && digestEntry[1] !== undefined) {
         if (Array.isArray(digestEntry[1])) {
-          return okAsync(false);
+          return okAsync({
+            verified: false,
+            reason: {
+              type: VerifyFailureReasonType.InvalidContentDigest,
+              message: "Content-digest heder value should not be an array.",
+            },
+          });
         }
         const [digestAlg] = parseDictionary(digestEntry[1] as string).keys();
         if (!verifyDigest(digestEntry[1] as string, body, digestAlg)) {
-          return okAsync(false);
+          return okAsync({
+            verified: false,
+            reason: {
+              type: VerifyFailureReasonType.ContentDigestMismatch,
+              message: "The digest generated from the request body does not match the content-digest header value.",
+            },
+          });
         }
       }
 
@@ -197,7 +261,13 @@ export const verifySignatureHeader = (
       const decodedSignatureRes = decodeBase64(signature);
 
       if (decodedSignatureRes.isErr()) {
-        return okAsync(false);
+        return okAsync({
+          verified: false,
+          reason: {
+            type: VerifyFailureReasonType.SignatureDecodeFailure,
+            message: `Failed to decode signature ${signatureId} from base64.`,
+          },
+        });
       }
       const { value: decodedSignature } = decodedSignatureRes;
 
@@ -214,11 +284,20 @@ export const verifySignatureHeader = (
     }
 
     return ResultAsync.fromPromise(
-      Promise.all(verifications).then((arr) =>
-        arr.reduce((acc, val) => {
+      Promise.all(verifications).then((arr) => {
+        const verified = arr.reduce((acc, val) => {
           return acc && !!val;
-        }, true)
-      ),
+        }, true);
+        return verified
+          ? { verified }
+          : {
+              verified,
+              reason: {
+                type: VerifyFailureReasonType.FailedToVerify,
+                message: "Signatures are well formed but one or more failed to verify.",
+              },
+            };
+      }),
       () => ({
         type: "VerifyFailed",
         message: "Failed to verify signature header",
