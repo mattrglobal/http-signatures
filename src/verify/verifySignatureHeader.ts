@@ -153,8 +153,8 @@ export const verifySignatureHeader = (
         return okAsync({
           verified: false,
           reason: {
-            type: VerifyFailureReasonType.MissingJWK,
-            message: `JWK ${keyid} could not be found in the keymap provided.`,
+            type: VerifyFailureReasonType.MissingKey,
+            message: `Key ${keyid} could not be found in the keymap provided.`,
           },
         });
       }
@@ -172,7 +172,7 @@ export const verifySignatureHeader = (
           verified: false,
           reason: {
             type: VerifyFailureReasonType.UndefinedAlgorithm,
-            message: `Signature ${signatureId} algortithm could not be determined from signature params or from any JWKs provided - specify an algorithm directly.`,
+            message: `Signature ${signatureId} algortithm could not be determined from signature params or from any keys provided - specify an algorithm directly.`,
           },
         });
       }
@@ -235,7 +235,7 @@ export const verifySignatureHeader = (
             verified: false,
             reason: {
               type: VerifyFailureReasonType.InvalidContentDigest,
-              message: "Content-digest heder value should not be an array.",
+              message: "Content-digest header value should not be an array.",
             },
           });
         }
@@ -285,9 +285,7 @@ export const verifySignatureHeader = (
 
     return ResultAsync.fromPromise(
       Promise.all(verifications).then((arr) => {
-        const verified = arr.reduce((acc, val) => {
-          return acc && !!val;
-        }, true);
+        const verified = arr.every((verifyResult) => verifyResult);
         return verified
           ? { verified }
           : {

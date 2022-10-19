@@ -23,7 +23,7 @@ export const verifyRequest = (options: VerifyRequestOptions): ResultAsync<Verify
   const { request, verifier, body, signatureKey } = options;
 
   return verifySignatureHeader({
-    url: `https://${request.headers.host}${request.url}` ?? "",
+    url: `https://${request.headers.host}${request.url}`,
     method: request.method ?? "",
     httpHeaders: request.headers,
     signatureKey: signatureKey,

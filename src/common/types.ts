@@ -17,7 +17,7 @@ export enum VerifyFailureReasonType {
   MissingOrInvalidSignature = "MissingOrInvalidSignature",
   SignatureParseFailure = "SignatureParseFailure",
   MissingSignatureKey = "MissingSignatureKey",
-  MissingJWK = "MissingJWK",
+  MissingKey = "MissingKey",
   UndefinedAlgorithm = "UndefinedAlgorithm",
   SignatureExpired = "SignatureExpired",
   GenerateVerifyDataFail = "GenerateVerifyDataFail",

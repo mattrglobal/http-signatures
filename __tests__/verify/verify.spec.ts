@@ -130,7 +130,7 @@ describe("verifyRequest", () => {
               request: req,
               body: reqdata,
             }).then(async (verifyResult) => {
-              expect(unwrap(verifyResult)).toMatchObject({
+              expect(unwrap(verifyResult)).toEqual({
                 verified: true,
               });
               await new Promise<void>((resolve, reject) => {
@@ -379,7 +379,7 @@ describe("verifyRequest", () => {
       data
     ).then((res) =>
       expect(res).toEqual({
-        body: { value: expect.objectContaining({ verified: true }) },
+        body: { value: { verified: true } },
         headers: {
           connection: "close",
           "content-type": "application/json",
@@ -441,7 +441,7 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(result)).toMatchObject({
+    expect(unwrap(result)).toEqual({
       verified: true,
     });
 
@@ -457,7 +457,7 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(resultWithLowerCaseHeader)).toMatchObject({
+    expect(unwrap(resultWithLowerCaseHeader)).toEqual({
       verified: true,
     });
   });
@@ -479,7 +479,7 @@ describe("verifySignatureHeader", () => {
       verifier: { verify: verifyDefault(keyMap) },
     });
 
-    expect(unwrap(result)).toMatchObject({
+    expect(unwrap(result)).toEqual({
       verified: true,
     });
   });
@@ -502,7 +502,7 @@ describe("verifySignatureHeader", () => {
       signatureKey: "sig2",
     });
 
-    expect(unwrap(result)).toMatchObject({
+    expect(unwrap(result)).toEqual({
       verified: true,
     });
   });
@@ -525,9 +525,12 @@ describe("verifySignatureHeader", () => {
       signatureKey: "abcdefg",
     });
 
-    expect(unwrap(result)).toMatchObject({
+    expect(unwrap(result)).toEqual({
       verified: false,
-      reason: expect.any(Object),
+      reason: {
+        type: VerifyFailureReasonType.MissingSignatureKey,
+        message: expect.any(String),
+      },
     });
   });
 
@@ -659,9 +662,12 @@ describe("verifySignatureHeader", () => {
       body: createSignatureHeaderOptions.body,
     });
 
-    expect(unwrap(result)).toMatchObject({
+    expect(unwrap(result)).toEqual({
       verified: false,
-      reason: expect.any(Object),
+      reason: {
+        type: VerifyFailureReasonType.FailedToVerify,
+        message: expect.any(String),
+      },
     });
   });
 
@@ -685,25 +691,6 @@ describe("verifySignatureHeader", () => {
     });
   });
 
-  it("Should return verified false if headers to verify do not match headers defined in the signature string", async () => {
-    const result = await verifySignatureHeader({
-      httpHeaders: {
-        randomHeader: "value",
-        Signature: createSignatureResult.signature,
-        "Signature-Input": createSignatureResult.signatureInput,
-      },
-      method: createSignatureHeaderOptions.method,
-      url: createSignatureHeaderOptions.url,
-      verifier: { keyMap },
-      body: createSignatureHeaderOptions.body,
-    });
-
-    expect(unwrap(result)).toMatchObject({
-      verified: false,
-      reason: expect.any(Object),
-    });
-  });
-
   it("Should return verified false if signature header is not a string", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {},
@@ -712,30 +699,16 @@ describe("verifySignatureHeader", () => {
       verifier: { keyMap },
     });
 
-    expect(unwrap(result)).toMatchObject({
+    expect(unwrap(result)).toEqual({
       verified: false,
-      reason: expect.any(Object),
+      reason: {
+        type: VerifyFailureReasonType.MissingOrInvalidSignature,
+        message: expect.any(String),
+      },
     });
   });
 
   test.each([
-    [
-      "@request-target",
-      `sig1=("content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
-    ],
-    [
-      "content-type",
-      `sig1=("@request-target" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
-    ],
-    [
-      "host",
-      `sig1=("@request-target" "content-type" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
-    ],
-    [
-      "method",
-      `sig1=("@request-target" "content-type" "host" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
-    ],
-    ["alg", `sig1=("@request-target" "content-type" "host" "@method");keyid="key1";created=1`],
     [
       "keyid",
       `sig1=("@request-target" "content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";created=1`,
@@ -759,7 +732,54 @@ describe("verifySignatureHeader", () => {
         verifier: { keyMap },
         body: createSignatureHeaderOptions.body,
       });
-      expect(result).toMatchObject({ value: { verified: false, reason: expect.any(Object) } });
+      expect(result).toMatchObject({
+        value: {
+          verified: false,
+          reason: { type: VerifyFailureReasonType.SignatureParseFailure, message: expect.any(String) },
+        },
+      });
+    }
+  );
+
+  test.each([
+    [
+      "@request-target",
+      `sig1=("content-type" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+    ],
+    [
+      "content-type",
+      `sig1=("@request-target" "host" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+    ],
+    [
+      "host",
+      `sig1=("@request-target" "content-type" "@method" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+    ],
+    [
+      "method",
+      `sig1=("@request-target" "content-type" "host" "content-digest");alg="ecdsa-p256-sha256";keyid="key1";created=1`,
+    ],
+    ["alg", `sig1=("@request-target" "content-type" "host" "@method");keyid="key1";created=1`],
+  ])(
+    "Should return verified false when signature-input header value is missing %s field",
+    async (missing, headerValue) => {
+      const result = await verifySignatureHeader({
+        httpHeaders: {
+          ...createSignatureHeaderOptions.httpHeaders,
+          "Content-Digest": `${createSignatureResult.digest}`,
+          Signature: createSignatureResult.signature,
+          "Signature-Input": headerValue,
+        },
+        method: createSignatureHeaderOptions.method,
+        url: createSignatureHeaderOptions.url,
+        verifier: { keyMap },
+        body: createSignatureHeaderOptions.body,
+      });
+      expect(result).toMatchObject({
+        value: {
+          verified: false,
+          reason: { type: VerifyFailureReasonType.FailedToVerify, message: expect.any(String) },
+        },
+      });
     }
   );
 
@@ -785,8 +805,8 @@ describe("verifySignatureHeader", () => {
     expect(unwrap(result)).toMatchObject({
       verified: false,
       reason: {
-        message: "Failed to decode signature sig1 from base64.",
         type: VerifyFailureReasonType.SignatureDecodeFailure,
+        message: expect.any(String),
       },
     });
   });
@@ -810,9 +830,9 @@ describe("verifySignatureHeader", () => {
       verified: false,
       reason: {
         type: VerifyFailureReasonType.GenerateVerifyDataFail,
-        message: "Unable to generate verify data for signature sig1.",
+        message: expect.any(String),
         details: {
-          cause: "Duplicate case insensitive header keys detected, specify an array of values instead",
+          cause: expect.any(String),
         },
       },
     });
@@ -834,7 +854,10 @@ describe("verifySignatureHeader", () => {
 
     expect(unwrap(result)).toMatchObject({
       verified: false,
-      reason: expect.any(Object),
+      reason: {
+        type: VerifyFailureReasonType.ContentDigestMismatch,
+        message: expect.any(String),
+      },
     });
   });
 
@@ -853,7 +876,10 @@ describe("verifySignatureHeader", () => {
 
     expect(unwrap(result)).toMatchObject({
       verified: false,
-      reason: expect.any(Object),
+      reason: {
+        type: VerifyFailureReasonType.ContentDigestMismatch,
+        message: expect.any(String),
+      },
     });
   });
 
@@ -873,7 +899,10 @@ describe("verifySignatureHeader", () => {
 
     expect(unwrap(result)).toMatchObject({
       verified: false,
-      reason: expect.any(Object),
+      reason: {
+        type: VerifyFailureReasonType.InvalidContentDigest,
+        message: expect.any(String),
+      },
     });
   });
 
@@ -895,7 +924,7 @@ describe("verifySignatureHeader", () => {
       verified: false,
       reason: {
         type: VerifyFailureReasonType.SignatureExpired,
-        message: "Signature sig1 has expired at timestamp 1. If you wish to ignore this, set verifyExpiry to false.",
+        message: expect.any(String),
       },
     });
   });

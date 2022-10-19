@@ -9,7 +9,7 @@ import { equals, isNil, pipe } from "ramda";
 import { generateDigest } from "../common";
 
 export const verifyDigest = (
-  digest: string | string[],
+  digest: string,
   body: Record<string, unknown> | string | undefined,
   digestAlgorithm: string
 ): boolean => {
