@@ -285,7 +285,7 @@ export const verifySignatureHeader = (
 
     return ResultAsync.fromPromise(
       Promise.all(verifications).then((arr) => {
-        const verified = arr.every((verifyResult) => verifyResult);
+        const verified = arr.every((verifyResult) => verifyResult === true);
         return verified
           ? { verified }
           : {

@@ -671,6 +671,72 @@ describe("verifySignatureHeader", () => {
     });
   });
 
+  it("Should return verified false when unable to determine verification algorithm", async () => {
+    const createOptions: CreateSignatureHeaderOptions = {
+      signer: { keyid: "key1", sign: algMap["rsa-pss-sha512"].sign(rsaPssPrivateKey) },
+      url: "http://example.com/foo?param=value&pet=dog",
+      method: "POST",
+      httpHeaders: {
+        ["HOST"]: "example.com",
+        ["Content-Type"]: "application/json",
+      },
+      body: `{"hello": "world"}`,
+    };
+
+    const signResult = await createSignatureHeader(createOptions);
+
+    expect(signResult.isOk()).toBe(true);
+    createSignatureResult = unwrap(signResult);
+
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ["HOST"]: "example.com",
+        ["Content-Type"]: "application/json",
+        "Content-Digest": `${createSignatureResult.digest}`,
+        Signature: createSignatureResult.signature,
+        "Signature-Input": createSignatureResult.signatureInput,
+      },
+      method: createOptions.method,
+      url: createOptions.url,
+      verifier: { keyMap: { key1: { key: rsaPssPublicKey } } },
+      body: createOptions.body,
+    });
+
+    expect(unwrap(result)).toEqual({
+      verified: false,
+      reason: {
+        type: VerifyFailureReasonType.UndefinedAlgorithm,
+        message: expect.any(String),
+      },
+    });
+  });
+
+  it("Should return verified false when specified crypto key is missing", async () => {
+    const validHttpHeaderInput = {
+      Signature: createSignatureResult.signature,
+      "Signature-Input": createSignatureResult.signatureInput,
+      "Content-Digest": createSignatureResult.digest,
+    };
+    const result = await verifySignatureHeader({
+      httpHeaders: {
+        ...createSignatureHeaderOptions.httpHeaders,
+        ...validHttpHeaderInput,
+      },
+      method: createSignatureHeaderOptions.method,
+      url: createSignatureHeaderOptions.url,
+      body: createSignatureHeaderOptions.body,
+      verifier: { keyMap: {} },
+    });
+
+    expect(unwrap(result)).toEqual({
+      verified: false,
+      reason: {
+        type: VerifyFailureReasonType.MissingKey,
+        message: expect.any(String),
+      },
+    });
+  });
+
   it("Should ignore headers not included in a signature string headers", async () => {
     const result = await verifySignatureHeader({
       httpHeaders: {
