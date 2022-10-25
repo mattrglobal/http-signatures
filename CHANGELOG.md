@@ -1,3 +1,7 @@
+## [4.0.1](https://github.com/mattrglobal/http-signatures/compare/v4.0.0...v4.0.1) (2022-10-24)
+
+**Note:**  adding missing logo svg only
+
 # [4.0.0](https://github.com/mattrglobal/http-signatures/compare/v3.0.2...v4.0.0) (2022-10-21)
 
 
