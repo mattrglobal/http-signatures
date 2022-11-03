@@ -7,7 +7,6 @@
 import { JsonWebKey } from "crypto";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { includes, pickBy, toLower } from "ramda";
-import { AlgorithmTypes } from "src/sign";
 import { parseDictionary, serializeList, serializeDictionary, InnerList } from "structured-headers";
 
 import {
@@ -24,6 +23,7 @@ import {
 } from "../common";
 import { algMap } from "../common/cryptoPrimatives";
 import { VerifySignatureHeaderError } from "../errors";
+import { AlgorithmTypes } from "../sign";
 
 import { verifyDigest } from "./verifyDigest";
 

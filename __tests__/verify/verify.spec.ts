@@ -74,7 +74,6 @@ aOT9v6d+nb4bnNkQVklLQ3fVAvJm+xdDOp9LCNCN48V2pnDOkFV6+U9nV5oyc6XI
 2wIDAQAB\n-----END PUBLIC KEY-----`;
 
 describe("verifyRequest", () => {
-  Date.now = jest.fn(() => 1577836800); //01.01.2020
   let server: http.Server;
   let host: string;
   let port: number;
@@ -106,6 +105,102 @@ describe("verifyRequest", () => {
       req.end();
     });
   };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.restoreAllMocks();
+    Date.now = jest.fn(() => 1577836800); //01.01.2020
+  });
+
+  it("Should verify an http request with verifyExpiry set to false when the signature has expired", async () => {
+    server = http.createServer((req, res) => {
+      if (req.url === "/test") {
+        let reqdata = "";
+        req.on("data", (chunk) => {
+          reqdata += chunk;
+        });
+
+        req.on("end", () => {
+          verifyRequest({
+            verifier: { keyMap: { key1: { key: ed25519KeyPair.publicKey, alg: AlgorithmTypes.ed25519 } } },
+            request: req,
+            body: reqdata,
+            verifyExpiry: false,
+          }).then(async (verifyResult) => {
+            expect(unwrap(verifyResult)).toEqual({
+              verified: true,
+            });
+            await new Promise<void>((resolve, reject) => {
+              server.close((err) => (err ? reject(err) : resolve()));
+            });
+          });
+        });
+
+        const data = {
+          headers: req.headers,
+        };
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(data));
+      } else {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end(JSON.stringify({ error: "Not Found" }));
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(() => resolve());
+    });
+
+    const address = server.address();
+    if (typeof address !== "object" || address == null) {
+      throw new Error("Unexpected server address");
+    }
+    host = "127.0.0.1";
+    port = address?.port;
+
+    const createOptions: CreateSignatureHeaderOptions = {
+      url: `http://127.0.0.1/test`,
+      method: "POST",
+      signer: { keyid: "key1", sign: algMap[AlgorithmTypes.ed25519].sign(ed25519KeyPair.privateKey) },
+      expires: 1587837,
+      nonce: "abcd",
+      httpHeaders: {
+        ["HOST"]: "127.0.0.1",
+        ["Content-Type"]: "application/json",
+      },
+      alg: AlgorithmTypes.ed25519,
+      body: `{"hello": "world"}`,
+    };
+    await createSignatureHeader(createOptions).then((res) => {
+      expect(res.isOk()).toBe(true);
+      res.isOk() ? (createSignatureResult = res.value) : undefined;
+    });
+
+    const validHttpHeaderInput = {
+      Signature: createSignatureResult.signature,
+      "Signature-Input": createSignatureResult.signatureInput,
+      "Content-Digest": createSignatureResult.digest,
+    };
+
+    Date.now = jest.fn(() => 1587838000);
+
+    const data = `{"hello": "world"}`;
+
+    await request(
+      {
+        host,
+        port,
+        path: "/test",
+        method: "POST",
+        headers: {
+          ...validHttpHeaderInput,
+          ["HOST"]: "127.0.0.1",
+          ["Content-Type"]: "application/json",
+        },
+      },
+      data
+    );
+  });
 
   test.each([
     [AlgorithmTypes["ecdsa-p256-sha256"], ecdsaP256KeyPair.privateKey, ecdsaP256KeyPair.publicKey],
@@ -394,9 +489,11 @@ describe("verifyRequest", () => {
 });
 
 describe("verifySignatureHeader", () => {
-  Date.now = jest.fn(() => 1577836800); //01.01.2020
-
   beforeEach(async () => {
+    jest.clearAllMocks();
+    jest.restoreAllMocks();
+    Date.now = jest.fn(() => 1577836800); //01.01.2020
+
     const createOptions: CreateSignatureHeaderOptions = {
       ...createSignatureHeaderOptions,
       signer: { keyid: "key1", sign: signEcdsaSha256(ecdsaP256KeyPair.privateKey) },

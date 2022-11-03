@@ -4,7 +4,8 @@
  * Confidential and proprietary
  */
 import crypto, { JsonWebKey } from "crypto";
-import { AlgorithmTypes } from "src/sign";
+
+import { AlgorithmTypes } from "../sign";
 
 export const signEcdsaSha256 =
   (key: JsonWebKey) =>
