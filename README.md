@@ -1,6 +1,6 @@
 ![Mattr logo](./docs/assets/mattr-black.svg)
 
-# http-signatures
+# HTTP Signatures
 
 ## Background
 
