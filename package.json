@@ -4,6 +4,10 @@
   "description": "An implementation of Http request signing and verifying",
   "private": false,
   "main": "lib/index.js",
+  "engines": {
+    "node": ">=18",
+    "yarn": "1.x"
+  },
   "typings": "lib/index.d.ts",
   "directories": {
     "lib": "lib",
