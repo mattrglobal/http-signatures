@@ -5,7 +5,7 @@
   "private": false,
   "main": "lib/index.js",
   "engines": {
-    "node": ">=18",
+    "node": "=14 || =16 || >=18",
     "yarn": "1.x"
   },
   "typings": "lib/index.d.ts",
