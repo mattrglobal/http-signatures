@@ -1,3 +1,12 @@
+# [4.1.0](https://github.com/mattrglobal/http-signatures/compare/v4.0.1...v4.1.0) (2023-10-03)
+
+
+### Bug Fixes
+
+* correct import paths, verifyRequest accepts verifyExpiry argument ([#49](https://github.com/mattrglobal/http-signatures/issues/49)) ([301ff26](https://github.com/mattrglobal/http-signatures/commit/301ff269bfcab22916a42ab1f268ac4fe613f2fa))
+
+
+
 ## [4.0.1](https://github.com/mattrglobal/http-signatures/compare/v4.0.0...v4.0.1) (2022-10-24)
 
 **Note:**  adding missing logo svg only
