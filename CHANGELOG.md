@@ -1,3 +1,8 @@
+# [4.2.0](https://github.com/mattrglobal/http-signatures/compare/v4.1.0...v4.2.0) (2025-05-21)
+
+* Upgrade dependencies to fix vulnerabilities
+
+
 ## [4.1.1](https://github.com/mattrglobal/http-signatures/compare/v4.1.0...v4.1.1) (2024-04-09)
 
 * Upgrade dependencies to fix vulnerabilities
