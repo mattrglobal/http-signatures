@@ -39,7 +39,7 @@
     "version:current": "node -pe \"require('./package.json').version\"",
     "publish:stable": "./scripts/publish_stable.sh",
     "publish:unstable": "./scripts/publish_unstable.sh",
-    "postinstall": "node -e \"if (require('fs').existsSync('.git')) require('child_process').execSync('husky install', { stdio: 'inherit' })\""
+    "postinstall": "husky install || exit 0"
   },
   "devDependencies": {
     "@commitlint/cli": "17.7.2",
