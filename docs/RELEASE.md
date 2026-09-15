@@ -5,10 +5,10 @@ To create a stable release follow the following steps
 1. Checkout the head of master `git checkout master && git pull`
 2. Create a new release branch from master e.g `release`
 3. Ensure the package is clean from previous branches/builds `yarn clean`
-4. Install the dependencies `yarn install --frozen-lockfile`
+4. Install the dependencies `yarn install --immutable`
 5. Build the package `yarn build`
 6. Test the package `yarn test`
-7. Run `yarn version:release --[major|minor|patch]`
+7. Run `yarn version:release [major|minor|patch]`
 8. Observe the correctly incremented change to the `package.json` and the new entry in `CHANGELOG.md` along with the
    newly created commit
 9. Push the release branch including the newly created tags `git push origin release --tags`

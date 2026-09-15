@@ -2,10 +2,9 @@
   "name": "@mattrglobal/http-signatures",
   "version": "4.2.0",
   "description": "An implementation of Http request signing and verifying",
-  "private": false,
   "main": "lib/index.js",
   "engines": {
-    "node": "=14 || =16 || >=18"
+    "node": ">=18"
   },
   "typings": "lib/index.d.ts",
   "directories": {
@@ -34,11 +33,12 @@
     "lint:fix": "eslint . --ext .ts --color --format=table --fix && yarn format",
     "format": "prettier --write '**/*.{js,ts,md,json,yml}'",
     "docs": "typedoc --plugin typedoc-plugin-markdown --theme docusaurus",
-    "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",
-    "version:release": "yarn version --message \"chore(release): publish\"",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md",
+    "version:release": "./scripts/version_release.sh",
+    "version:current": "node -pe \"require('./package.json').version\"",
     "publish:stable": "./scripts/publish_stable.sh",
     "publish:unstable": "./scripts/publish_unstable.sh",
-    "prepare": "husky install"
+    "postinstall": "[ -d .git ] && husky install || true"
   },
   "devDependencies": {
     "@commitlint/cli": "17.7.2",
@@ -77,5 +77,6 @@
     "ramda": "0.30.1",
     "structured-headers": "0.5.0",
     "url": "0.11.0"
-  }
+  },
+  "packageManager": "yarn@4.18.0"
 }

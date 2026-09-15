@@ -12,12 +12,14 @@ some added utils for ease of use.
 
 ### Prerequisites
 
-- [Yarn](https://yarnpkg.com)
+- [Node.js](https://nodejs.org) 18 or later
+- [Yarn](https://yarnpkg.com) 4, provided by Corepack: run `corepack enable` once, then `yarn -v` in this repo should
+  report the version pinned in the `packageManager` field of `package.json`.
 
 ### Installation
 
 ```bash
-yarn install --frozen-lockfile
+yarn install --immutable
 yarn build
 ```
 
