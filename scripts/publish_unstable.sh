@@ -11,6 +11,10 @@ set -euo pipefail
 # Add dev dependencies to current path
 export PATH="$PATH:node_modules/.bin"
 
+# Restore package.json on any exit path. Under `set -e` a failed publish would
+# otherwise skip the cleanup and leave the temporary unstable version behind.
+trap 'git checkout -- package.json' EXIT
+
 # Patch version the current package. Berry's `yarn version` never creates a git tag,
 # so Yarn 1's `--no-git-tag-version` flag is obsolete rather than renamed.
 yarn version patch
@@ -25,6 +29,3 @@ new_unstable_version=$new_version"-unstable.$(git rev-parse --short HEAD)"
 # `yarn npm publish` has no `--new-version`, so the version is set as its own step.
 yarn version "$new_unstable_version"
 yarn npm publish --tag unstable
-
-# Reset changes to the package.json
-git checkout -- package.json

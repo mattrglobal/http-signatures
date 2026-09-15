@@ -26,6 +26,15 @@ esac
 # Add dev dependencies to current path
 export PATH="$PATH:node_modules/.bin"
 
+# Refuse to run against uncommitted changes to the files this script rewrites.
+# The bump below and the restore on the tag-exists path would otherwise sweep up
+# or discard unrelated edits.
+dirty=$(git status --porcelain -- package.json CHANGELOG.md)
+if [ -n "$dirty" ]; then
+  echo "package.json or CHANGELOG.md has uncommitted changes; commit or stash first." >&2
+  exit 1
+fi
+
 # Bump the version in package.json. Berry never creates a git tag here.
 yarn version "$strategy"
 
