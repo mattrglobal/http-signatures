@@ -6,6 +6,11 @@ jest_results/
 node_modules/
 .npmrc
 
+# Yarn Berry: we do not use zero-installs, so nothing under .yarn/ is committed.
+# Corepack fetches the version pinned in package.json's packageManager field.
+.yarn/
+.pnp.*
+
 ######################
 # Intellij
 ######################

@@ -15,15 +15,20 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # pin@v5.0.0
         with:
           node-version: 18.x
-      - run: yarn
-      - run: yarn install --frozen-lockfile
+          # Corepack is enabled in the next step, so setup-node must not probe the
+          # global Yarn 1 for a cache dir - it errors on "packageManager": "yarn@4".
+          package-manager-cache: false
+      - name: Enable corepack
+        run: corepack enable
+      - run: yarn install --immutable
       - run: yarn lint
       - run: yarn build
       - run: yarn test
-      - run: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc 2> /dev/null
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPMJS_TOKEN }}
       - run: git config user.name "Mattr CI"
       - run: git config user.email "npmjs_ci_mattr_public@mattr.global"
       - run: yarn publish:stable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Yarn 4 does not read .npmrc. It picks the token up from this variable
+          # with no corresponding setting in .yarnrc.yml; the name is fixed.
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
