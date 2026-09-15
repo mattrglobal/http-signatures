@@ -4,7 +4,7 @@
   "description": "An implementation of Http request signing and verifying",
   "main": "lib/index.js",
   "engines": {
-    "node": ">=18"
+    "node": "=14 || =16 || >=18"
   },
   "typings": "lib/index.d.ts",
   "directories": {
@@ -39,7 +39,7 @@
     "version:current": "node -pe \"require('./package.json').version\"",
     "publish:stable": "./scripts/publish_stable.sh",
     "publish:unstable": "./scripts/publish_unstable.sh",
-    "postinstall": "[ -e .git ] && husky install || true"
+    "postinstall": "node -e \"if (require('fs').existsSync('.git')) require('child_process').execSync('husky install', { stdio: 'inherit' })\""
   },
   "devDependencies": {
     "@commitlint/cli": "17.7.2",
