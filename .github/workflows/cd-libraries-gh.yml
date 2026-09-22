@@ -43,29 +43,9 @@ jobs:
           yarn install --frozen-lockfile
           yarn build
 
-      - name: Setup nodejs for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@mattrinternal"
-
       - name: Publish to GitHub Packages
         env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          PACKAGE_NAME=$(node -p "require('./package.json').name.split('/')[1]")
-          npm pkg set name="@mattrinternal/${PACKAGE_NAME}"
-          npm pkg delete scripts
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            const rewrite = (deps) => !deps ? deps : Object.fromEntries(
-              Object.entries(deps).map(([k, v]) => [k.replace('@mattrglobal/', '@mattrinternal/'), v])
-            );
-            pkg.dependencies = rewrite(pkg.dependencies);
-            pkg.peerDependencies = rewrite(pkg.peerDependencies);
-            pkg.devDependencies = rewrite(pkg.devDependencies);
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          "
-          npm publish || echo "Already published at this version, skipping"
+          npm config set //npm.pkg.github.com/:_authToken "${GH_TOKEN}"
+          npm publish --registry https://npm.pkg.github.com || echo "Already published at this version, skipping"
